@@ -14,19 +14,22 @@ type Server interface {
 }
 
 type server struct {
-	addr  string
-	out   chan Message
 	ln    net.Listener
+	out   chan Message
+	quit  chan struct{}
 }
 
 func Listen(addr string) (Server, error) {
-	s := &server{addr: addr, out: make(chan Message)}
-
-	tcp, err := net.Listen("tcp", s.addr)
+	tcp, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
-	s.ln = tcp
+
+	s := &server{
+	  ln:   tcp,
+	  out:  make(chan Message),
+	  quit: make(chan struct{}),
+	}
 
 	go s.start()
 	return s, nil
@@ -36,8 +39,13 @@ func (s *server) start() {
 	for {
 		conn, err := s.ln.Accept()
 		if err != nil {
-			log.Println(err)
-			continue
+			select {
+			case <-s.quit:
+				return
+			default:
+				log.Println(err)
+				continue
+			}
 		}
 
 		text := textproto.NewConn(conn)
@@ -52,6 +60,7 @@ func (s *server) Out() <-chan Message {
 }
 
 func (s *server) Close() error {
+	close(s.quit)
 	return s.ln.Close()
 }
 
@@ -70,15 +79,15 @@ loop:
 		parts, err := read(text)
 		if err != nil {
 			log.Println(err)
-			break loop
+			return
 		}
 
-		switch parts[0] {
+		switch strings.ToUpper(parts[0]) {
 		case "MAIL":
 			sender, err := mail(parts, text)
 			if err != nil {
 				log.Println(err)
-				break loop
+				return
 			}
 
 			transaction.Sender(sender)
@@ -87,7 +96,7 @@ loop:
 			recipient, err := rcpt(parts, text)
 			if err != nil {
 				log.Println(err)
-				break loop
+				return
 			}
 
 			transaction.Recipient(recipient)
@@ -96,10 +105,17 @@ loop:
 			d, err := data(parts, text)
 			if err != nil {
 				log.Println(err)
-				break loop
+				return
 			}
 
 			transaction.Data(d)
+
+		case "RSET":
+			if err := rset(text); err != nil {
+				log.Println(err)
+				return
+			}
+			transaction = NewTransaction()
 
 		case "QUIT":
 			quit(parts, text)
@@ -179,5 +195,10 @@ func data(parts []string, text *textproto.Conn) (string, error) {
 
 func quit(parts []string, text *textproto.Conn) error {
 	write(text, "221 Bye")
+	return nil
+}
+
+func rset(text *textproto.Conn) error {
+	write(text, "250 Ok")
 	return nil
 }
