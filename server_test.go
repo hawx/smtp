@@ -144,3 +144,16 @@ func TestSenderRecipientBodyAndQuitWithReset(t *testing.T) {
 		}
 	})
 }
+
+func TestVerify(t *testing.T) {
+	assert := assert.New(t)
+
+	with(t, func(s Server) {
+		c, err := smtp.Dial(ADDR)
+		assert.Nil(err)
+
+		assert.Equal(c.Verify("sender@example.org").Error(), "502 Command not implemented%!(EXTRA []interface {}=[])")
+
+		assert.Nil(c.Quit())
+	})
+}

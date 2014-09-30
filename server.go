@@ -117,9 +117,18 @@ loop:
 			}
 			transaction = NewTransaction()
 
+		case "VRFY":
+			if err := vrfy(text); err != nil {
+				log.Println(err)
+				return
+			}
+
 		case "QUIT":
 			quit(parts, text)
 			break loop
+
+		default:
+			log.Println(parts[0], "not recognised")
 		}
 	}
 
@@ -200,5 +209,10 @@ func quit(parts []string, text *textproto.Conn) error {
 
 func rset(text *textproto.Conn) error {
 	write(text, "250 Ok")
+	return nil
+}
+
+func vrfy(text *textproto.Conn) error {
+	write(text, "502 Command not implemented")
 	return nil
 }
