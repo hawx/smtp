@@ -161,19 +161,20 @@ func ehlo(text *textproto.Conn) error {
 	}
 
 	if cmd != "EHLO" {
-		return errors.New("Not EHLO")
+		helo(cmd, rest, text)
 	}
 
 	write(text, "250 Hello %s, I am glad to meet you", rest)
 	return nil
 }
 
-func parseAddress(address string) (string, error) {
-	if address[0] != '<' && address[len(address)-1] != '>' {
-		return "", errors.New("Address must be between '<' and '>'")
+func helo(cmd, rest string, text *textproto.Conn) error {
+	if cmd != "HELO" {
+		return errors.New("Not HELO")
 	}
 
-	return address[1:len(address)-1], nil
+	write(text, "250 Hello %s, I am glad to meet you", rest)
+	return nil
 }
 
 var (
