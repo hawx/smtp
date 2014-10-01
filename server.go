@@ -5,8 +5,8 @@ import (
 	"log"
 	"net"
 	"net/textproto"
-	"strings"
 	"regexp"
+	"strings"
 )
 
 type Handler func(Message)
@@ -17,23 +17,25 @@ type Server interface {
 }
 
 type server struct {
-	ln    net.Listener
-	out   chan Message
+	name     string
+	ln       net.Listener
+	out      chan Message
 	handlers []Handler
-	quit  chan struct{}
+	quit     chan struct{}
 }
 
-func Listen(addr string) (Server, error) {
+func Listen(addr, name string) (Server, error) {
 	tcp, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, err
 	}
 
 	s := &server{
-	  ln:   tcp,
-	  handlers: []Handler{},
-	  out:  make(chan Message),
-	  quit: make(chan struct{}),
+		name:     name,
+		ln:       tcp,
+		handlers: []Handler{},
+		out:      make(chan Message),
+		quit:     make(chan struct{}),
 	}
 
 	go s.start()
@@ -65,7 +67,7 @@ func (s *server) start() {
 		}
 
 		text := textproto.NewConn(conn)
-		serve(text, s.out)
+		s.serve(text)
 
 		conn.Close()
 	}
@@ -80,8 +82,8 @@ func (s *server) handle() {
 	}
 }
 
-func serve(text *textproto.Conn, out chan Message) {
-	text.PrintfLine("220 what")
+func (s *server) serve(text *textproto.Conn) {
+	text.PrintfLine("220 %s", s.name)
 
 	if err := ehlo(text); err != nil {
 		log.Println(err)
@@ -148,7 +150,7 @@ loop:
 		}
 	}
 
-	out <- transaction.Message()
+	s.out <- transaction.Message()
 }
 
 func read(text *textproto.Conn) (string, string, error) {

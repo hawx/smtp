@@ -8,10 +8,13 @@ import (
 	"time"
 )
 
-const ADDR = "127.0.0.1:9026"
+const (
+	ADDR = "127.0.0.1:9026"
+	NAME = "mx.test.server"
+)
 
 func with(t *testing.T, f func(Server)) {
-	s, err := Listen(ADDR)
+	s, err := Listen(ADDR, NAME)
 	if err != nil {
 		t.Fatal(err)
 	}
