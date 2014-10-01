@@ -88,14 +88,19 @@ func TestSenderRecipientBodyAndQuit(t *testing.T) {
 		assert.Nil(err)
 		assert.Nil(wc.Close())
 
-		assert.Nil(c.Quit())
-
-		select {
-		case msg := <-s.Out():
+		called := make(chan struct{})
+		s.Handle(func(msg Message) {
 			assert.Equal("sender@example.org", msg.Sender)
 			assert.Equal(1, len(msg.Recipients))
 			assert.Equal("recipient@example.net", msg.Recipients[0])
 			assert.Equal("This is the email body\n", msg.Data)
+			close(called)
+		})
+
+		assert.Nil(c.Quit())
+
+		select {
+		case <-called:
 		case <-time.After(time.Second):
 			t.Log("timed out")
 			t.Fail()
@@ -130,16 +135,39 @@ func TestSenderRecipientBodyAndQuitWithReset(t *testing.T) {
 		assert.Nil(err)
 		assert.Nil(wc.Close())
 
-		assert.Nil(c.Quit())
-
-		select {
-		case msg := <-s.Out():
+		called := make(chan struct{})
+		s.Handle(func(msg Message) {
+			t.Log("first handler called")
 			assert.Equal("sender2@example.org", msg.Sender)
 			assert.Equal(1, len(msg.Recipients))
 			assert.Equal("recipient2@example.net", msg.Recipients[0])
 			assert.Equal("This is the email body2\n", msg.Data)
+			close(called)
+		})
+
+		called2 := make(chan struct{})
+		s.Handle(func(msg Message) {
+			t.Log("second handler called")
+			assert.Equal("sender2@example.org", msg.Sender)
+			assert.Equal(1, len(msg.Recipients))
+			assert.Equal("recipient2@example.net", msg.Recipients[0])
+			assert.Equal("This is the email body2\n", msg.Data)
+			close(called2)
+		})
+
+		assert.Nil(c.Quit())
+
+		select {
+		case <-called:
 		case <-time.After(time.Second):
 			t.Log("timed out")
+			t.Fail()
+		}
+
+		select {
+		case <-called2:
+		case <-time.After(time.Second):
+			t.Log("timed out2")
 			t.Fail()
 		}
 	})

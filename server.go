@@ -9,14 +9,17 @@ import (
 	"regexp"
 )
 
+type Handler func(Message)
+
 type Server interface {
-	Out()   <-chan Message
+	Handle(Handler)
 	Close() error
 }
 
 type server struct {
 	ln    net.Listener
 	out   chan Message
+	handlers []Handler
 	quit  chan struct{}
 }
 
@@ -28,12 +31,24 @@ func Listen(addr string) (Server, error) {
 
 	s := &server{
 	  ln:   tcp,
+	  handlers: []Handler{},
 	  out:  make(chan Message),
 	  quit: make(chan struct{}),
 	}
 
 	go s.start()
+	go s.handle()
+
 	return s, nil
+}
+
+func (s *server) Handle(handler Handler) {
+	s.handlers = append(s.handlers, handler)
+}
+
+func (s *server) Close() error {
+	close(s.quit)
+	return s.ln.Close()
 }
 
 func (s *server) start() {
@@ -56,13 +71,13 @@ func (s *server) start() {
 	}
 }
 
-func (s *server) Out() <-chan Message {
-	return s.out
-}
-
-func (s *server) Close() error {
-	close(s.quit)
-	return s.ln.Close()
+func (s *server) handle() {
+	for {
+		msg := <-s.out
+		for _, handler := range s.handlers {
+			handler(msg)
+		}
+	}
 }
 
 func serve(text *textproto.Conn, out chan Message) {
