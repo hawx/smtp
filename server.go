@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/textproto"
 	"strings"
+	"regexp"
 )
 
 type Server interface {
@@ -175,24 +176,29 @@ func parseAddress(address string) (string, error) {
 	return address[1:len(address)-1], nil
 }
 
+var (
+	mailRe = regexp.MustCompile("FROM:<(.*?)>")
+	rcptRe = regexp.MustCompile("TO:<(.*?)>")
+)
+
 func mail(args string, text *textproto.Conn) (string, error) {
-	parts := strings.SplitN(args, ":", 2)
-	if len(parts) < 2 {
+	matches := mailRe.FindStringSubmatch(args)
+	if matches == nil || len(matches) != 2 {
 		return "", errors.New("MAIL: No address")
 	}
 
 	write(text, "250 Ok")
-	return parseAddress(parts[1])
+	return matches[1], nil
 }
 
 func rcpt(args string, text *textproto.Conn) (string, error) {
-	parts := strings.SplitN(args, ":", 2)
-	if len(parts) < 2 {
-		return "", errors.New("No address in RCPT")
+	matches := rcptRe.FindStringSubmatch(args)
+	if matches == nil || len(matches) != 2 {
+		return "", errors.New("RCPT: No address")
 	}
 
 	write(text, "250 Ok")
-	return parseAddress(parts[1])
+	return matches[1], nil
 }
 
 func data(text *textproto.Conn) (string, error) {
