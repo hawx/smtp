@@ -76,15 +76,15 @@ func serve(text *textproto.Conn, out chan Message) {
 
 loop:
 	for {
-		parts, err := read(text)
+		cmd, rest, err := read(text)
 		if err != nil {
 			log.Println(err)
 			return
 		}
 
-		switch strings.ToUpper(parts[0]) {
+		switch strings.ToUpper(cmd) {
 		case "MAIL":
-			sender, err := mail(parts, text)
+			sender, err := mail(rest, text)
 			if err != nil {
 				log.Println(err)
 				return
@@ -93,7 +93,7 @@ loop:
 			transaction.Sender(sender)
 
 		case "RCPT":
-			recipient, err := rcpt(parts, text)
+			recipient, err := rcpt(rest, text)
 			if err != nil {
 				log.Println(err)
 				return
@@ -102,7 +102,7 @@ loop:
 			transaction.Recipient(recipient)
 
 		case "DATA":
-			d, err := data(parts, text)
+			d, err := data(text)
 			if err != nil {
 				log.Println(err)
 				return
@@ -124,24 +124,29 @@ loop:
 			}
 
 		case "QUIT":
-			quit(parts, text)
+			quit(text)
 			break loop
 
 		default:
-			log.Println(parts[0], "not recognised")
+			log.Println(cmd, "not recognised")
 		}
 	}
 
 	out <- transaction.Message()
 }
 
-func read(text *textproto.Conn) ([]string, error) {
+func read(text *textproto.Conn) (string, string, error) {
 	line, err := text.ReadLine()
 	if err != nil {
-		return []string{}, err
+		return "", "", err
 	}
 
-	return strings.Split(line, " "), nil
+	parts := strings.SplitN(line, " ", 2)
+	if len(parts) == 1 {
+		return parts[0], "", nil
+	}
+
+	return parts[0], parts[1], nil
 }
 
 func write(text *textproto.Conn, format string, args ...interface{}) {
@@ -149,16 +154,16 @@ func write(text *textproto.Conn, format string, args ...interface{}) {
 }
 
 func ehlo(text *textproto.Conn) error {
-	parts, err := read(text)
+	cmd, rest, err := read(text)
 	if err != nil {
 		return err
 	}
 
-	if parts[0] != "EHLO" {
+	if cmd != "EHLO" {
 		return errors.New("Not EHLO")
 	}
 
-	write(text, "250 Hello %s, I am glad to meet you", parts[1])
+	write(text, "250 Hello %s, I am glad to meet you", rest)
 	return nil
 }
 
@@ -170,8 +175,8 @@ func parseAddress(address string) (string, error) {
 	return address[1:len(address)-1], nil
 }
 
-func mail(parts []string, text *textproto.Conn) (string, error) {
-	parts = strings.SplitN(parts[1], ":", 2)
+func mail(args string, text *textproto.Conn) (string, error) {
+	parts := strings.SplitN(args, ":", 2)
 	if len(parts) < 2 {
 		return "", errors.New("MAIL: No address")
 	}
@@ -180,8 +185,8 @@ func mail(parts []string, text *textproto.Conn) (string, error) {
 	return parseAddress(parts[1])
 }
 
-func rcpt(parts []string, text *textproto.Conn) (string, error) {
-	parts = strings.SplitN(parts[1], ":", 2)
+func rcpt(args string, text *textproto.Conn) (string, error) {
+	parts := strings.SplitN(args, ":", 2)
 	if len(parts) < 2 {
 		return "", errors.New("No address in RCPT")
 	}
@@ -190,7 +195,7 @@ func rcpt(parts []string, text *textproto.Conn) (string, error) {
 	return parseAddress(parts[1])
 }
 
-func data(parts []string, text *textproto.Conn) (string, error) {
+func data(text *textproto.Conn) (string, error) {
 	write(text, "354 End data with <CRLF>.<CRLF>")
 
 	d, err := text.ReadDotBytes()
@@ -202,11 +207,6 @@ func data(parts []string, text *textproto.Conn) (string, error) {
 	return string(d), nil
 }
 
-func quit(parts []string, text *textproto.Conn) error {
-	write(text, "221 Bye")
-	return nil
-}
-
 func rset(text *textproto.Conn) error {
 	write(text, "250 Ok")
 	return nil
@@ -214,5 +214,10 @@ func rset(text *textproto.Conn) error {
 
 func vrfy(text *textproto.Conn) error {
 	write(text, "502 Command not implemented")
+	return nil
+}
+
+func quit(text *textproto.Conn) error {
+	write(text, "221 Bye")
 	return nil
 }
