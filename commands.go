@@ -71,11 +71,6 @@ func rset(text *textproto.Conn) error {
 	return nil
 }
 
-func vrfy(text *textproto.Conn) error {
-	write(text, "502 Command not implemented")
-	return nil
-}
-
 func quit(text *textproto.Conn) error {
 	write(text, "221 Bye")
 	return nil

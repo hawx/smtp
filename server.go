@@ -137,18 +137,18 @@ loop:
 			}
 			transaction = NewTransaction()
 
-		case "VRFY":
-			if err := vrfy(text); err != nil {
-				log.Println("VRFY:", err)
-				return
-			}
-
 		case "QUIT":
 			quit(text)
 			break loop
 
+		case "NOOP":
+			write(text, "250 Ok")
+
+		case "VRFY", "EXPN", "HELP":
+			write(text, "502 Command not implemented")
+
 		default:
-			log.Println(cmd, "not recognised")
+			write(text, "500 Command unrecognized")
 		}
 	}
 
