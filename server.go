@@ -1,11 +1,10 @@
 package server
 
 import (
-	"errors"
 	"log"
+	"io"
 	"net"
 	"net/textproto"
-	"regexp"
 	"strings"
 )
 
@@ -61,15 +60,13 @@ func (s *server) start() {
 			case <-s.quit:
 				return
 			default:
-				log.Println(err)
+				log.Println("start:", err)
 				continue
 			}
 		}
 
 		text := textproto.NewConn(conn)
-		s.serve(text)
-
-		conn.Close()
+		go s.serve(text, conn)
 	}
 }
 
@@ -82,11 +79,12 @@ func (s *server) handle() {
 	}
 }
 
-func (s *server) serve(text *textproto.Conn) {
+func (s *server) serve(text *textproto.Conn, closer io.Closer) {
+	defer closer.Close()
 	text.PrintfLine("220 %s", s.name)
 
 	if err := ehlo(text); err != nil {
-		log.Println(err)
+		log.Println("EHLO:", err)
 		return
 	}
 
@@ -96,7 +94,11 @@ loop:
 	for {
 		cmd, rest, err := read(text)
 		if err != nil {
-			log.Println(err)
+			if err == io.EOF {
+				return
+			}
+
+			log.Println("read:", err)
 			return
 		}
 
@@ -104,7 +106,7 @@ loop:
 		case "MAIL":
 			sender, err := mail(rest, text)
 			if err != nil {
-				log.Println(err)
+				log.Println("MAIL:", err)
 				return
 			}
 
@@ -113,7 +115,7 @@ loop:
 		case "RCPT":
 			recipient, err := rcpt(rest, text)
 			if err != nil {
-				log.Println(err)
+				log.Println("RCPT:", err)
 				return
 			}
 
@@ -122,7 +124,7 @@ loop:
 		case "DATA":
 			d, err := data(text)
 			if err != nil {
-				log.Println(err)
+				log.Println("DATA:", err)
 				return
 			}
 
@@ -130,14 +132,14 @@ loop:
 
 		case "RSET":
 			if err := rset(text); err != nil {
-				log.Println(err)
+				log.Println("RSET:", err)
 				return
 			}
 			transaction = NewTransaction()
 
 		case "VRFY":
 			if err := vrfy(text); err != nil {
-				log.Println(err)
+				log.Println("VRFY:", err)
 				return
 			}
 
@@ -169,79 +171,4 @@ func read(text *textproto.Conn) (string, string, error) {
 
 func write(text *textproto.Conn, format string, args ...interface{}) {
 	text.PrintfLine(format, args)
-}
-
-func ehlo(text *textproto.Conn) error {
-	cmd, rest, err := read(text)
-	if err != nil {
-		return err
-	}
-
-	if cmd != "EHLO" {
-		helo(cmd, rest, text)
-	}
-
-	write(text, "250 Hello %s, I am glad to meet you", rest)
-	return nil
-}
-
-func helo(cmd, rest string, text *textproto.Conn) error {
-	if cmd != "HELO" {
-		return errors.New("Not HELO")
-	}
-
-	write(text, "250 Hello %s, I am glad to meet you", rest)
-	return nil
-}
-
-var (
-	mailRe = regexp.MustCompile("FROM:<(.*?)>")
-	rcptRe = regexp.MustCompile("TO:<(.*?)>")
-)
-
-func mail(args string, text *textproto.Conn) (string, error) {
-	matches := mailRe.FindStringSubmatch(args)
-	if matches == nil || len(matches) != 2 {
-		return "", errors.New("MAIL: No address")
-	}
-
-	write(text, "250 Ok")
-	return matches[1], nil
-}
-
-func rcpt(args string, text *textproto.Conn) (string, error) {
-	matches := rcptRe.FindStringSubmatch(args)
-	if matches == nil || len(matches) != 2 {
-		return "", errors.New("RCPT: No address")
-	}
-
-	write(text, "250 Ok")
-	return matches[1], nil
-}
-
-func data(text *textproto.Conn) (string, error) {
-	write(text, "354 End data with <CRLF>.<CRLF>")
-
-	d, err := text.ReadDotBytes()
-	if err != nil {
-		return "", err
-	}
-
-	text.PrintfLine("250 Ok")
-	return string(d), nil
-}
-
-func rset(text *textproto.Conn) error {
-	write(text, "250 Ok")
-	return nil
-}
-
-func vrfy(text *textproto.Conn) error {
-	write(text, "502 Command not implemented")
-	return nil
-}
-
-func quit(text *textproto.Conn) error {
-	write(text, "221 Bye")
-	return nil
 }

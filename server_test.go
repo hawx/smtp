@@ -140,7 +140,6 @@ func TestSenderRecipientBodyAndQuitWithReset(t *testing.T) {
 
 		called := make(chan struct{})
 		s.Handle(func(msg Message) {
-			t.Log("first handler called")
 			assert.Equal("sender2@example.org", msg.Sender)
 			assert.Equal(1, len(msg.Recipients))
 			assert.Equal("recipient2@example.net", msg.Recipients[0])
@@ -150,7 +149,6 @@ func TestSenderRecipientBodyAndQuitWithReset(t *testing.T) {
 
 		called2 := make(chan struct{})
 		s.Handle(func(msg Message) {
-			t.Log("second handler called")
 			assert.Equal("sender2@example.org", msg.Sender)
 			assert.Equal(1, len(msg.Recipients))
 			assert.Equal("recipient2@example.net", msg.Recipients[0])
