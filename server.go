@@ -129,6 +129,8 @@ loop:
 			}
 
 			transaction.Data(d)
+			s.out <- transaction.Message()
+			transaction = NewTransaction()
 
 		case "RSET":
 			if err := rset(text); err != nil {
@@ -151,8 +153,6 @@ loop:
 			write(text, "500 Command unrecognized")
 		}
 	}
-
-	s.out <- transaction.Message()
 }
 
 func read(text *textproto.Conn) (string, string, error) {

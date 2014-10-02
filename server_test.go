@@ -29,6 +29,15 @@ func TestSenderRecipientBodyAndQuit(t *testing.T) {
 	assert := assert.New(t)
 
 	with(t, func(s Server) {
+		called := make(chan struct{})
+		s.Handle(func(msg Message) {
+			assert.Equal("sender@example.org", msg.Sender)
+			assert.Equal(1, len(msg.Recipients))
+			assert.Equal("recipient@example.net", msg.Recipients[0])
+			assert.Equal("This is the email body\n", msg.Data)
+			close(called)
+		})
+
 		c, err := smtp.Dial(ADDR)
 		assert.Nil(err)
 
@@ -41,14 +50,63 @@ func TestSenderRecipientBodyAndQuit(t *testing.T) {
 		assert.Nil(err)
 		assert.Nil(wc.Close())
 
+		assert.Nil(c.Quit())
+
+		select {
+		case <-called:
+		case <-time.After(time.Second):
+			t.Log("timed out")
+			t.Fail()
+		}
+	})
+}
+
+func TestSendMultipleMessagesWithSameConnection(t *testing.T) {
+	assert := assert.New(t)
+
+	with(t, func(s Server) {
 		called := make(chan struct{})
+		calls := 0
 		s.Handle(func(msg Message) {
-			assert.Equal("sender@example.org", msg.Sender)
-			assert.Equal(1, len(msg.Recipients))
-			assert.Equal("recipient@example.net", msg.Recipients[0])
-			assert.Equal("This is the email body\n", msg.Data)
-			close(called)
+			switch calls {
+			case 0:
+				assert.Equal("sender@example.org", msg.Sender)
+				assert.Equal(1, len(msg.Recipients))
+				assert.Equal("recipient@example.net", msg.Recipients[0])
+				assert.Equal("This is the email body\n", msg.Data)
+			case 1:
+				assert.Equal("sender2@example.org", msg.Sender)
+				assert.Equal(1, len(msg.Recipients))
+				assert.Equal("recipient2@example.net", msg.Recipients[0])
+				assert.Equal("This is the email body 2\n", msg.Data)
+				close(called)
+			default:
+				t.Fail()
+			}
+
+			calls++
 		})
+
+		c, err := smtp.Dial(ADDR)
+		assert.Nil(err)
+
+		assert.Nil(c.Mail("sender@example.org"))
+		assert.Nil(c.Rcpt("recipient@example.net"))
+
+		wc, err := c.Data()
+		assert.Nil(err)
+		_, err = fmt.Fprintf(wc, "This is the email body")
+		assert.Nil(err)
+		assert.Nil(wc.Close())
+
+		assert.Nil(c.Mail("sender2@example.org"))
+		assert.Nil(c.Rcpt("recipient2@example.net"))
+
+		wc, err = c.Data()
+		assert.Nil(err)
+		_, err = fmt.Fprintf(wc, "This is the email body 2")
+		assert.Nil(err)
+		assert.Nil(wc.Close())
 
 		assert.Nil(c.Quit())
 
@@ -65,6 +123,17 @@ func TestMessageToMultipleRecipients(t *testing.T) {
 	assert := assert.New(t)
 
 	with(t, func(s Server) {
+		called := make(chan struct{})
+		s.Handle(func(msg Message) {
+			assert.Equal("sender@example.org", msg.Sender)
+			assert.Equal(3, len(msg.Recipients))
+			assert.Equal("recipient1@example.net", msg.Recipients[0])
+			assert.Equal("recipient2@example.net", msg.Recipients[1])
+			assert.Equal("recipient3@example.net", msg.Recipients[2])
+			assert.Equal("This is the email body\n", msg.Data)
+			close(called)
+		})
+
 		c, err := smtp.Dial(ADDR)
 		assert.Nil(err)
 
@@ -78,17 +147,6 @@ func TestMessageToMultipleRecipients(t *testing.T) {
 		_, err = fmt.Fprintf(wc, "This is the email body")
 		assert.Nil(err)
 		assert.Nil(wc.Close())
-
-		called := make(chan struct{})
-		s.Handle(func(msg Message) {
-			assert.Equal("sender@example.org", msg.Sender)
-			assert.Equal(3, len(msg.Recipients))
-			assert.Equal("recipient1@example.net", msg.Recipients[0])
-			assert.Equal("recipient2@example.net", msg.Recipients[1])
-			assert.Equal("recipient3@example.net", msg.Recipients[2])
-			assert.Equal("This is the email body\n", msg.Data)
-			close(called)
-		})
 
 		assert.Nil(c.Quit())
 
@@ -105,29 +163,6 @@ func TestSenderRecipientBodyAndQuitWithReset(t *testing.T) {
 	assert := assert.New(t)
 
 	with(t, func(s Server) {
-		c, err := smtp.Dial(ADDR)
-		assert.Nil(err)
-
-		assert.Nil(c.Mail("sender@example.org"))
-		assert.Nil(c.Rcpt("recipient@example.net"))
-
-		wc, err := c.Data()
-		assert.Nil(err)
-		_, err = fmt.Fprintf(wc, "This is the email body")
-		assert.Nil(err)
-		assert.Nil(wc.Close())
-
-		assert.Nil(c.Reset())
-
-		assert.Nil(c.Mail("sender2@example.org"))
-		assert.Nil(c.Rcpt("recipient2@example.net"))
-
-		wc, err = c.Data()
-		assert.Nil(err)
-		_, err = fmt.Fprintf(wc, "This is the email body2")
-		assert.Nil(err)
-		assert.Nil(wc.Close())
-
 		called := make(chan struct{})
 		s.Handle(func(msg Message) {
 			assert.Equal("sender2@example.org", msg.Sender)
@@ -145,6 +180,23 @@ func TestSenderRecipientBodyAndQuitWithReset(t *testing.T) {
 			assert.Equal("This is the email body2\n", msg.Data)
 			close(called2)
 		})
+
+		c, err := smtp.Dial(ADDR)
+		assert.Nil(err)
+
+		assert.Nil(c.Mail("sender@example.org"))
+		assert.Nil(c.Rcpt("recipient@example.net"))
+
+		assert.Nil(c.Reset())
+
+		assert.Nil(c.Mail("sender2@example.org"))
+		assert.Nil(c.Rcpt("recipient2@example.net"))
+
+		wc, err := c.Data()
+		assert.Nil(err)
+		_, err = fmt.Fprintf(wc, "This is the email body2")
+		assert.Nil(err)
+		assert.Nil(wc.Close())
 
 		assert.Nil(c.Quit())
 
