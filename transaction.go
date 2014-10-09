@@ -7,42 +7,61 @@ type Message struct {
 }
 
 type Transaction interface {
-	Sender(string)
-	HasSender() bool
-	Recipient(string)
-	Data(string)
-	Message() Message
-}
-
-type transaction struct {
-	sender     string
-	hasSender  bool
-
-	recipients []string
-	data       string
+	Sender(string) (Transaction, bool)
+	Recipient(string) (Transaction, bool)
+	Data(string) (Message, bool)
 }
 
 func NewTransaction() Transaction {
-	return &transaction{}
+	return &emptyTransaction{}
 }
 
-func (t *transaction) Sender(sender string) {
-	t.sender = sender
-	t.hasSender = true
+type emptyTransaction struct{}
+
+func (t *emptyTransaction) Sender(sender string) (Transaction, bool) {
+	return &senderTransaction{sender}, true
 }
 
-func (t *transaction) HasSender() bool {
-	return t.hasSender
+func (t *emptyTransaction) Recipient(recipient string) (Transaction, bool) {
+	return nil, false
 }
 
-func (t *transaction) Recipient(recipient string) {
+func (t *emptyTransaction) Data(data string) (Message, bool) {
+	return Message{}, false
+}
+
+
+type senderTransaction struct {
+	sender string
+}
+
+func (t *senderTransaction) Sender(sender string) (Transaction, bool) {
+	return &senderTransaction{sender}, true
+}
+
+func (t *senderTransaction) Recipient(recipient string) (Transaction, bool) {
+	return &recipientsTransaction{t.sender, []string{recipient}}, true
+}
+
+func (t *senderTransaction) Data(data string) (Message, bool) {
+	return Message{}, false
+}
+
+
+type recipientsTransaction struct {
+	sender     string
+	recipients []string
+}
+
+func (t *recipientsTransaction) Sender(sender string) (Transaction, bool) {
+	return &senderTransaction{sender}, true
+}
+
+func (t *recipientsTransaction) Recipient(recipient string) (Transaction, bool) {
 	t.recipients = append(t.recipients, recipient)
+	return t, true
 }
 
-func (t *transaction) Data(data string) {
-	t.data = data
-}
-
-func (t *transaction) Message() Message {
-	return Message{t.sender, t.recipients, t.data}
+func (t *recipientsTransaction) Data(data string) (Message, bool) {
+	return Message{t.sender, t.recipients, data}, true
 }

@@ -83,8 +83,9 @@ func TestSenderRecipientBodyAndQuit(t *testing.T) {
 		called := make(chan struct{})
 		s.Handle(func(msg Message) {
 			assert.Equal("sender@example.org", msg.Sender)
-			assert.Equal(1, len(msg.Recipients))
-			assert.Equal("recipient@example.net", msg.Recipients[0])
+			if assert.Equal(1, len(msg.Recipients)) {
+				assert.Equal("recipient@example.net", msg.Recipients[0])
+			}
 			assert.Equal("This is the email body\n", msg.Data)
 			close(called)
 		})
@@ -122,13 +123,15 @@ func TestSendMultipleMessagesWithSameConnection(t *testing.T) {
 			switch calls {
 			case 0:
 				assert.Equal("sender@example.org", msg.Sender)
-				assert.Equal(1, len(msg.Recipients))
-				assert.Equal("recipient@example.net", msg.Recipients[0])
+				if assert.Equal(1, len(msg.Recipients)) {
+					assert.Equal("recipient@example.net", msg.Recipients[0])
+				}
 				assert.Equal("This is the email body\n", msg.Data)
 			case 1:
 				assert.Equal("sender2@example.org", msg.Sender)
-				assert.Equal(1, len(msg.Recipients))
-				assert.Equal("recipient2@example.net", msg.Recipients[0])
+				if assert.Equal(1, len(msg.Recipients)) {
+					assert.Equal("recipient2@example.net", msg.Recipients[0])
+				}
 				assert.Equal("This is the email body 2\n", msg.Data)
 				close(called)
 			default:
@@ -177,10 +180,11 @@ func TestMessageToMultipleRecipients(t *testing.T) {
 		called := make(chan struct{})
 		s.Handle(func(msg Message) {
 			assert.Equal("sender@example.org", msg.Sender)
-			assert.Equal(3, len(msg.Recipients))
-			assert.Equal("recipient1@example.net", msg.Recipients[0])
-			assert.Equal("recipient2@example.net", msg.Recipients[1])
-			assert.Equal("recipient3@example.net", msg.Recipients[2])
+			if assert.Equal(3, len(msg.Recipients)) {
+				assert.Equal("recipient1@example.net", msg.Recipients[0])
+				assert.Equal("recipient2@example.net", msg.Recipients[1])
+				assert.Equal("recipient3@example.net", msg.Recipients[2])
+			}
 			assert.Equal("This is the email body\n", msg.Data)
 			close(called)
 		})
@@ -217,8 +221,9 @@ func TestSenderRecipientBodyAndQuitWithReset(t *testing.T) {
 		called := make(chan struct{})
 		s.Handle(func(msg Message) {
 			assert.Equal("sender2@example.org", msg.Sender)
-			assert.Equal(1, len(msg.Recipients))
-			assert.Equal("recipient2@example.net", msg.Recipients[0])
+			if assert.Equal(1, len(msg.Recipients)) {
+				assert.Equal("recipient2@example.net", msg.Recipients[0])
+			}
 			assert.Equal("This is the email body2\n", msg.Data)
 			close(called)
 		})
@@ -226,8 +231,9 @@ func TestSenderRecipientBodyAndQuitWithReset(t *testing.T) {
 		called2 := make(chan struct{})
 		s.Handle(func(msg Message) {
 			assert.Equal("sender2@example.org", msg.Sender)
-			assert.Equal(1, len(msg.Recipients))
-			assert.Equal("recipient2@example.net", msg.Recipients[0])
+			if assert.Equal(1, len(msg.Recipients)) {
+				assert.Equal("recipient2@example.net", msg.Recipients[0])
+			}
 			assert.Equal("This is the email body2\n", msg.Data)
 			close(called2)
 		})

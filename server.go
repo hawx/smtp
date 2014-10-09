@@ -1,8 +1,8 @@
 package server
 
 import (
-	"log"
 	"io"
+	"log"
 	"net"
 	"net/textproto"
 	"strings"
@@ -134,19 +134,10 @@ loop:
 
 		switch strings.ToUpper(cmd) {
 		case "MAIL":
-			sender := mail(rest, text)
-
-			transaction = NewTransaction()
-			transaction.Sender(sender)
+			transaction = mail(rest, text, transaction)
 
 		case "RCPT":
-			if !transaction.HasSender() {
-				write(text, "503 Command out of sequence")
-				continue
-			}
-
-			recipient := rcpt(rest, text)
-			transaction.Recipient(recipient)
+			transaction = rcpt(rest, text, transaction)
 
 		case "DATA":
 			d, err := data(text)
@@ -155,8 +146,8 @@ loop:
 				continue
 			}
 
-			transaction.Data(d)
-			s.out <- transaction.Message()
+			message, _ := transaction.Data(d)
+			s.out <- message
 			transaction = NewTransaction()
 
 		case "RSET":

@@ -20,26 +20,36 @@ func helo(name string, text *textproto.Conn) {
 	write(text, "250 %s at your service", name)
 }
 
-func mail(args string, text *textproto.Conn) string {
+func mail(args string, text *textproto.Conn, transaction Transaction) Transaction {
 	matches := mailRe.FindStringSubmatch(args)
 	if matches == nil || len(matches) != 2 {
 		write(text, "501 Syntax error")
-		return ""
+		return transaction
 	}
 
-	write(text, "250 Ok")
-	return matches[1]
+	if newTransaction, ok := transaction.Sender(matches[1]); ok {
+		write(text, "250 Ok")
+		return newTransaction
+	} else {
+		write(text, "503 Command out of sequence")
+		return transaction
+	}
 }
 
-func rcpt(args string, text *textproto.Conn) string {
+func rcpt(args string, text *textproto.Conn, transaction Transaction) Transaction {
 	matches := rcptRe.FindStringSubmatch(args)
 	if matches == nil || len(matches) != 2 {
 		write(text, "501 Syntax error")
-		return ""
+		return transaction
 	}
 
-	write(text, "250 Ok")
-	return matches[1]
+	if newTransaction, ok := transaction.Recipient(matches[1]); ok {
+		write(text, "250 Ok")
+		return newTransaction
+	} else {
+		write(text, "503 Command out of sequence")
+		return transaction
+	}
 }
 
 func data(text *textproto.Conn) (string, error) {
