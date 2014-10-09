@@ -83,41 +83,6 @@ func (s *server) serve(text *textproto.Conn, closer io.Closer) {
 	defer closer.Close()
 	text.PrintfLine("220 %s", s.name)
 
-firstloop:
-	for {
-		cmd, _, err := read(text)
-		if err != nil {
-			if err == io.EOF {
-				return
-			}
-
-			log.Println("read:", err)
-			return
-		}
-
-		switch strings.ToUpper(cmd) {
-		case "EHLO":
-			ehlo(s.name, text)
-			break firstloop
-
-		case "HELO":
-			helo(s.name, text)
-			break firstloop
-
-		case "NOOP", "RSET":
-			write(text, "250 Ok")
-
-		case "VRFY", "EXPN", "HELP":
-			write(text, "502 Command not implemented")
-
-		case "MAIL":
-			write(text, "503 Command out of sequence")
-
-		default:
-			write(text, "500 Command unrecognized")
-		}
-	}
-
 	transaction := NewTransaction()
 
 loop:
@@ -133,6 +98,14 @@ loop:
 		}
 
 		switch strings.ToUpper(cmd) {
+		case "EHLO":
+			ehlo(s.name, text)
+			transaction = Reset(transaction)
+
+		case "HELO":
+			helo(s.name, text)
+			transaction = Reset(transaction)
+
 		case "MAIL":
 			transaction = mail(rest, text, transaction)
 
@@ -148,11 +121,11 @@ loop:
 
 			message, _ := transaction.Data(d)
 			s.out <- message
-			transaction = NewTransaction()
+			transaction = Reset(transaction)
 
 		case "RSET":
 			rset(text)
-			transaction = NewTransaction()
+			transaction = Reset(transaction)
 
 		case "QUIT":
 			quit(text)

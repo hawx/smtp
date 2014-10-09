@@ -13,7 +13,25 @@ type Transaction interface {
 }
 
 func NewTransaction() Transaction {
+	return &closedTransaction{}
+}
+
+func Reset(t Transaction) Transaction {
 	return &emptyTransaction{}
+}
+
+type closedTransaction struct{}
+
+func (t *closedTransaction) Sender(sender string) (Transaction, bool) {
+	return nil, false
+}
+
+func (t *closedTransaction) Recipient(recipient string) (Transaction, bool) {
+	return nil, false
+}
+
+func (t *closedTransaction) Data(data string) (Message, bool) {
+	return Message{}, false
 }
 
 type emptyTransaction struct{}
