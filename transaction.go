@@ -8,6 +8,7 @@ type Message struct {
 
 type Transaction interface {
 	Sender(string)
+	HasSender() bool
 	Recipient(string)
 	Data(string)
 	Message() Message
@@ -15,6 +16,8 @@ type Transaction interface {
 
 type transaction struct {
 	sender     string
+	hasSender  bool
+
 	recipients []string
 	data       string
 }
@@ -25,6 +28,11 @@ func NewTransaction() Transaction {
 
 func (t *transaction) Sender(sender string) {
 	t.sender = sender
+	t.hasSender = true
+}
+
+func (t *transaction) HasSender() bool {
+	return t.hasSender
 }
 
 func (t *transaction) Recipient(recipient string) {

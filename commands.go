@@ -2,42 +2,31 @@ package server
 
 import (
 	"net/textproto"
-	"errors"
 	"regexp"
+	"fmt"
 )
 
 var (
 	mailRe = regexp.MustCompile("FROM:<(.*?)>")
-	rcptRe = regexp.MustCompile("TO:<(.*?)>")
+	rcptRe = regexp.MustCompile("TO:<(.+)>")
 )
 
-func ehlo(text *textproto.Conn) error {
-	cmd, rest, err := read(text)
-	if err != nil {
-		return err
-	}
-
-	if cmd != "EHLO" {
-		helo(cmd, rest, text)
-	}
-
-	write(text, "250 Hello %s, I am glad to meet you", rest)
+func ehlo(name string, text *textproto.Conn) error {
+	write(text, "250-%s at your service", name)
+	write(text, "250 8BITMIME")
 	return nil
 }
 
-func helo(cmd, rest string, text *textproto.Conn) error {
-	if cmd != "HELO" {
-		return errors.New("Not HELO")
-	}
-
-	write(text, "250 Hello %s, I am glad to meet you", rest)
+func helo(name string, text *textproto.Conn) error {
+	write(text, "250 %s at your service", name)
 	return nil
 }
 
 func mail(args string, text *textproto.Conn) (string, error) {
 	matches := mailRe.FindStringSubmatch(args)
 	if matches == nil || len(matches) != 2 {
-		return "", errors.New("MAIL: No address")
+		write(text, "501 Syntax error")
+		return "", fmt.Errorf("No address in '%s'", args)
 	}
 
 	write(text, "250 Ok")
@@ -47,7 +36,8 @@ func mail(args string, text *textproto.Conn) (string, error) {
 func rcpt(args string, text *textproto.Conn) (string, error) {
 	matches := rcptRe.FindStringSubmatch(args)
 	if matches == nil || len(matches) != 2 {
-		return "", errors.New("RCPT: No address")
+		write(text, "501 Syntax error")
+		return "", fmt.Errorf("No address in '%s'", args)
 	}
 
 	write(text, "250 Ok")

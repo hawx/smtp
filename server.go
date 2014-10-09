@@ -83,9 +83,39 @@ func (s *server) serve(text *textproto.Conn, closer io.Closer) {
 	defer closer.Close()
 	text.PrintfLine("220 %s", s.name)
 
-	if err := ehlo(text); err != nil {
-		log.Println("EHLO:", err)
-		return
+firstloop:
+	for {
+		cmd, _, err := read(text)
+		if err != nil {
+			if err == io.EOF {
+				return
+			}
+
+			log.Println("read:", err)
+			return
+		}
+
+		switch strings.ToUpper(cmd) {
+		case "EHLO":
+			ehlo(s.name, text)
+			break firstloop
+
+		case "HELO":
+			helo(s.name, text)
+			break firstloop
+
+		case "NOOP", "RSET":
+			write(text, "250 Ok")
+
+		case "VRFY", "EXPN", "HELP":
+			write(text, "502 Command not implemented")
+
+		case "MAIL":
+			write(text, "503 Command out of sequence")
+
+		default:
+			write(text, "500 Command unrecognized")
+		}
 	}
 
 	transaction := NewTransaction()
@@ -110,9 +140,15 @@ loop:
 				return
 			}
 
+			transaction = NewTransaction()
 			transaction.Sender(sender)
 
 		case "RCPT":
+			if !transaction.HasSender() {
+				write(text, "503 Command out of sequence")
+				continue
+			}
+
 			recipient, err := rcpt(rest, text)
 			if err != nil {
 				log.Println("RCPT:", err)
@@ -170,5 +206,5 @@ func read(text *textproto.Conn) (string, string, error) {
 }
 
 func write(text *textproto.Conn, format string, args ...interface{}) {
-	text.PrintfLine(format, args)
+	text.PrintfLine(format, args...)
 }
