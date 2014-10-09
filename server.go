@@ -134,11 +134,7 @@ loop:
 
 		switch strings.ToUpper(cmd) {
 		case "MAIL":
-			sender, err := mail(rest, text)
-			if err != nil {
-				log.Println("MAIL:", err)
-				return
-			}
+			sender := mail(rest, text)
 
 			transaction = NewTransaction()
 			transaction.Sender(sender)
@@ -149,19 +145,14 @@ loop:
 				continue
 			}
 
-			recipient, err := rcpt(rest, text)
-			if err != nil {
-				log.Println("RCPT:", err)
-				return
-			}
-
+			recipient := rcpt(rest, text)
 			transaction.Recipient(recipient)
 
 		case "DATA":
 			d, err := data(text)
 			if err != nil {
 				log.Println("DATA:", err)
-				return
+				continue
 			}
 
 			transaction.Data(d)
@@ -169,10 +160,7 @@ loop:
 			transaction = NewTransaction()
 
 		case "RSET":
-			if err := rset(text); err != nil {
-				log.Println("RSET:", err)
-				return
-			}
+			rset(text)
 			transaction = NewTransaction()
 
 		case "QUIT":

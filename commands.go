@@ -3,7 +3,7 @@ package server
 import (
 	"net/textproto"
 	"regexp"
-	"fmt"
+	"log"
 )
 
 var (
@@ -11,37 +11,35 @@ var (
 	rcptRe = regexp.MustCompile("TO:<(.+)>")
 )
 
-func ehlo(name string, text *textproto.Conn) error {
+func ehlo(name string, text *textproto.Conn) {
 	write(text, "250-%s at your service", name)
 	write(text, "250 8BITMIME")
-	return nil
 }
 
-func helo(name string, text *textproto.Conn) error {
+func helo(name string, text *textproto.Conn) {
 	write(text, "250 %s at your service", name)
-	return nil
 }
 
-func mail(args string, text *textproto.Conn) (string, error) {
+func mail(args string, text *textproto.Conn) string {
 	matches := mailRe.FindStringSubmatch(args)
 	if matches == nil || len(matches) != 2 {
 		write(text, "501 Syntax error")
-		return "", fmt.Errorf("No address in '%s'", args)
+		return ""
 	}
 
 	write(text, "250 Ok")
-	return matches[1], nil
+	return matches[1]
 }
 
-func rcpt(args string, text *textproto.Conn) (string, error) {
+func rcpt(args string, text *textproto.Conn) string {
 	matches := rcptRe.FindStringSubmatch(args)
 	if matches == nil || len(matches) != 2 {
 		write(text, "501 Syntax error")
-		return "", fmt.Errorf("No address in '%s'", args)
+		return ""
 	}
 
 	write(text, "250 Ok")
-	return matches[1], nil
+	return matches[1]
 }
 
 func data(text *textproto.Conn) (string, error) {
@@ -49,6 +47,7 @@ func data(text *textproto.Conn) (string, error) {
 
 	d, err := text.ReadDotBytes()
 	if err != nil {
+		log.Println("DATA:", err)
 		return "", err
 	}
 
@@ -56,12 +55,10 @@ func data(text *textproto.Conn) (string, error) {
 	return string(d), nil
 }
 
-func rset(text *textproto.Conn) error {
+func rset(text *textproto.Conn) {
 	write(text, "250 Ok")
-	return nil
 }
 
-func quit(text *textproto.Conn) error {
+func quit(text *textproto.Conn) {
 	write(text, "221 Bye")
-	return nil
 }
