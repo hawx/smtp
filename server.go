@@ -81,8 +81,8 @@ func (s *server) handle() {
 
 func (s *server) serve(text *textproto.Conn, closer io.Closer) {
 	defer closer.Close()
-	text.PrintfLine("220 %s", s.name)
 
+	write(text, "220 %s", s.name)
 	transaction := NewTransaction()
 
 loop:
@@ -127,13 +127,13 @@ loop:
 			break loop
 
 		case "NOOP":
-			write(text, "250 Ok")
+			write(text, OK)
 
 		case "VRFY", "EXPN", "HELP":
-			write(text, "502 Command not implemented")
+			write(text, COMMAND_NOT_IMPLEMENTED)
 
 		default:
-			write(text, "500 Command unrecognized")
+			write(text, COMMAND_UNRECOGNIZED)
 		}
 	}
 }
