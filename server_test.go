@@ -64,6 +64,17 @@ func NewServer(t *testing.T) Server {
 	return s
 }
 
+func NewCatchServer(t *testing.T) (Server, <-chan Message) {
+	s := NewServer(t)
+
+	ch := make(chan Message)
+	s.Handle(func(m Message) {
+		ch <- m
+	})
+
+	return s, ch
+}
+
 func with(t *testing.T, f func(Server)) {
 	s, err := Listen(ADDR, NAME)
 	if err != nil {
@@ -486,8 +497,8 @@ func TestRcptWithSyntaxErrors(t *testing.T) {
 	}
 }
 
-func TestRcpWithoutMail(t *testing.T) {
-s := NewServer(t)
+func TestRcptWithoutMail(t *testing.T) {
+	s := NewServer(t)
 	defer s.Close()
 
 	c := NewClient(t)
@@ -496,5 +507,95 @@ s := NewServer(t)
 	c.Skip(2)
 
 	c.Send("RCPT TO:<other.john@example.com>")
+	assert.Equal(t, c.ReadLine(), "503 Command out of sequence")
+}
+
+// DATA
+
+func TestData(t *testing.T) {
+	s, ch := NewCatchServer(t)
+	defer s.Close()
+
+	c := NewClient(t)
+
+	c.Send("EHLO local.test")
+	c.Skip(2)
+
+	c.Send("MAIL FROM:<john.doe@example.com>")
+	c.Skip(1)
+
+	c.Send("RCPT TO:<jane.doe@example.org>")
+	c.Skip(1)
+
+	c.Send("DATA")
+	assert.Equal(t, c.ReadLine(), "354 End data with <CRLF>.<CRLF>")
+
+	c.Send("ok so here is the message")
+	c.Send("it goes a bit like this")
+	c.Send("that was it")
+
+	c.Send(".")
+	assert.Equal(t, c.ReadLine(), "250 Ok")
+
+	select {
+	case msg := <-ch:
+		assert.Equal(t, msg.Sender, "john.doe@example.com")
+		if assert.Equal(t, 1, len(msg.Recipients)) {
+			assert.Equal(t, "jane.doe@example.org", msg.Recipients[0])
+		}
+		assert.Equal(t, "ok so here is the message\nit goes a bit like this\nthat was it\n", msg.Data)
+	case <-time.After(time.Second):
+		t.Log("timed out")
+		t.Fail()
+	}
+}
+
+func TestDataWithEmptyBody(t *testing.T) {
+	s, ch := NewCatchServer(t)
+	defer s.Close()
+
+	c := NewClient(t)
+
+	c.Send("EHLO local.test")
+	c.Skip(2)
+
+	c.Send("MAIL FROM:<john.doe@example.com>")
+	c.Skip(1)
+
+	c.Send("RCPT TO:<jane.doe@example.org>")
+	c.Skip(1)
+
+	c.Send("DATA")
+	assert.Equal(t, c.ReadLine(), "354 End data with <CRLF>.<CRLF>")
+
+	c.Send(".")
+	assert.Equal(t, c.ReadLine(), "250 Ok")
+
+	select {
+	case msg := <-ch:
+		assert.Equal(t, "john.doe@example.com", msg.Sender)
+		if assert.Equal(t, 1, len(msg.Recipients)) {
+			assert.Equal(t, "jane.doe@example.org", msg.Recipients[0])
+		}
+		assert.Equal(t, "", msg.Data)
+	case <-time.After(time.Second):
+		t.Log("timed out")
+		t.Fail()
+	}
+}
+
+func TestDataWithoutRcpt(t *testing.T) {
+	s := NewServer(t)
+	defer s.Close()
+
+	c := NewClient(t)
+
+	c.Send("EHLO local.test")
+	c.Skip(2)
+
+	c.Send("MAIL FROM:<john.doe@example.com>")
+	c.Skip(1)
+
+	c.Send("DATA")
 	assert.Equal(t, c.ReadLine(), "503 Command out of sequence")
 }

@@ -113,15 +113,10 @@ loop:
 			transaction = rcpt(rest, text, transaction)
 
 		case "DATA":
-			d, err := data(text)
-			if err != nil {
-				log.Println("DATA:", err)
-				continue
+			if message, ok := data(text, transaction); ok {
+				s.out <- message
+				transaction = Reset(transaction)
 			}
-
-			message, _ := transaction.Data(d)
-			s.out <- message
-			transaction = Reset(transaction)
 
 		case "RSET":
 			rset(text)

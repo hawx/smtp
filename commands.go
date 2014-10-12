@@ -52,17 +52,23 @@ func rcpt(args string, text *textproto.Conn, transaction Transaction) Transactio
 	}
 }
 
-func data(text *textproto.Conn) (string, error) {
+func data(text *textproto.Conn, transaction Transaction) (Message, bool) {
+	if _, ok := transaction.Data("test"); !ok {
+		write(text, "503 Command out of sequence")
+		return Message{}, false
+	}
+
 	write(text, "354 End data with <CRLF>.<CRLF>")
 
 	d, err := text.ReadDotBytes()
 	if err != nil {
 		log.Println("DATA:", err)
-		return "", err
+		return Message{}, false
 	}
 
 	text.PrintfLine("250 Ok")
-	return string(d), nil
+	message, _ := transaction.Data(string(d))
+	return message, true
 }
 
 func rset(text *textproto.Conn) {
