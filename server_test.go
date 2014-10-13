@@ -291,7 +291,7 @@ func TestVerify(t *testing.T) {
 		c, err := smtp.Dial(ADDR)
 		assert.Nil(err)
 
-		assert.Equal(c.Verify("sender@example.org").Error(), "502 Command not implemented")
+		assert.Equal(c.Verify("sender@example.org").Error(), "252 Cannot VRFY user, but will attempt delivery")
 
 		assert.Nil(c.Quit())
 	})
@@ -320,24 +320,6 @@ func TestNoop(t *testing.T) {
 		c := NewClient(t)
 
 		c.Send("NOOP")
-		assert.Equal(t, c.ReadLine(), "250 Ok")
-	})
-}
-
-func TestVrfy(t *testing.T) {
-	with(t, func(s Server) {
-		c := NewClient(t)
-
-		c.Send("VRFY some@address.com")
-		assert.Equal(t, c.ReadLine(), "502 Command not implemented")
-	})
-}
-
-func TestRset(t *testing.T) {
-	with(t, func(s Server) {
-		c := NewClient(t)
-
-		c.Send("RSET")
 		assert.Equal(t, c.ReadLine(), "250 Ok")
 	})
 }
@@ -604,4 +586,83 @@ func TestDataWithoutRcpt(t *testing.T) {
 	  t.Log("Should not have got a message")
   case <-time.After(TIMEOUT):
 	}
+}
+
+// RSET
+
+func TestRset(t *testing.T) {
+	s, ch := NewCatchServer(t)
+	defer s.Close()
+
+	c := NewClient(t)
+
+	c.Send("EHLO local.test")
+	c.Skip(2)
+
+	c.Send("MAIL FROM:<john.doe@example.com>")
+	c.Skip(1)
+
+	c.Send("RCPT TO:<jane.doe@example.org>")
+	c.Skip(1)
+
+	c.Send("RSET")
+	assert.Equal(t, c.ReadLine(), "250 Ok")
+
+	c.Send("MAIL FROM:<john.doe2@example.com>")
+	c.Skip(1)
+
+	c.Send("RCPT TO:<jane.doe2@example.org>")
+	c.Skip(1)
+
+	c.Send("DATA")
+	assert.Equal(t, c.ReadLine(), "354 End data with <CRLF>.<CRLF>")
+
+	c.Send("that was it")
+	c.Send(".")
+	assert.Equal(t, c.ReadLine(), "250 Ok")
+
+	select {
+	case msg := <-ch:
+		assert.Equal(t, msg.Sender, "john.doe2@example.com")
+		if assert.Equal(t, 1, len(msg.Recipients)) {
+			assert.Equal(t, "jane.doe2@example.org", msg.Recipients[0])
+		}
+		assert.Equal(t, "that was it\n", msg.Data)
+	case <-time.After(TIMEOUT):
+		t.Log("timed out")
+		t.Fail()
+	}
+}
+
+// VRFY
+
+func TestVrfy(t *testing.T) {
+	s := NewServer(t)
+	defer s.Close()
+
+	c := NewClient(t)
+
+	c.Send("VRFY john.doe@example.com")
+	assert.Equal(t, c.ReadLine(), "252 Cannot VRFY user, but will attempt delivery")
+}
+
+func TestVrfyWithImplementation(t *testing.T) {
+	s := NewServer(t)
+	defer s.Close()
+
+	s.Verify(func(addr string) (string, string, bool) {
+		if addr == "john.doe@example.com" {
+			return "John Doe", "john.doe@example.com", true
+		}
+
+		return "", "", false
+	})
+
+	c := NewClient(t)
+
+	c.Send("VRFY john.doe@example.com")
+	assert.Equal(t, c.ReadLine(), "250 John Doe <john.doe@example.com>")
+
+	c.Send("VRFY jane.doe@example.com")
+	assert.Equal(t, c.ReadLine(), "252 Cannot VRFY user, but will attempt delivery")
 }

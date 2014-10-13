@@ -9,9 +9,11 @@ import (
 )
 
 type Handler func(Message)
+type Verifier func(string) (string, string, bool)
 
 type Server interface {
 	Handle(Handler)
+	Verify(Verifier)
 	Close() error
 }
 
@@ -19,8 +21,10 @@ type server struct {
 	name     string
 	ln       net.Listener
 	out      chan Message
-	handlers []Handler
 	quit     chan struct{}
+
+	verifier Verifier
+	handlers []Handler
 }
 
 func Listen(addr, name string) (Server, error) {
@@ -32,9 +36,12 @@ func Listen(addr, name string) (Server, error) {
 	s := &server{
 		name:     name,
 		ln:       tcp,
-		handlers: []Handler{},
 		out:      make(chan Message),
 		quit:     make(chan struct{}),
+	  handlers: []Handler{},
+	  verifier: func(_ string) (string, string, bool) {
+			return "", "", false
+		},
 	}
 
 	go s.start()
@@ -45,6 +52,10 @@ func Listen(addr, name string) (Server, error) {
 
 func (s *server) Handle(handler Handler) {
 	s.handlers = append(s.handlers, handler)
+}
+
+func (s *server) Verify(verifier Verifier) {
+	s.verifier = verifier
 }
 
 func (s *server) Close() error {
@@ -122,6 +133,14 @@ loop:
 			rset(text)
 			transaction = Reset(transaction)
 
+		case "VRFY":
+			if name, addr, ok := s.verifier(rest); ok {
+				write(text, "250 %s <%s>", name, addr)
+				continue
+			}
+
+			write(text, "252 Cannot VRFY user, but will attempt delivery")
+
 		case "QUIT":
 			quit(text)
 			break loop
@@ -129,7 +148,7 @@ loop:
 		case "NOOP":
 			write(text, OK)
 
-		case "VRFY", "EXPN", "HELP":
+		case "EXPN", "HELP":
 			write(text, COMMAND_NOT_IMPLEMENTED)
 
 		default:
