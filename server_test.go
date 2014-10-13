@@ -12,8 +12,8 @@ import (
 const (
 	ADDR = "127.0.0.1:9026"
 	NAME = "mx.test.server"
+	TIMEOUT = 10 * time.Millisecond
 )
-
 
 type Client struct {
 	text *textproto.Conn
@@ -544,7 +544,7 @@ func TestData(t *testing.T) {
 			assert.Equal(t, "jane.doe@example.org", msg.Recipients[0])
 		}
 		assert.Equal(t, "ok so here is the message\nit goes a bit like this\nthat was it\n", msg.Data)
-	case <-time.After(time.Second):
+	case <-time.After(TIMEOUT):
 		t.Log("timed out")
 		t.Fail()
 	}
@@ -578,14 +578,14 @@ func TestDataWithEmptyBody(t *testing.T) {
 			assert.Equal(t, "jane.doe@example.org", msg.Recipients[0])
 		}
 		assert.Equal(t, "", msg.Data)
-	case <-time.After(time.Second):
+	case <-time.After(TIMEOUT):
 		t.Log("timed out")
 		t.Fail()
 	}
 }
 
 func TestDataWithoutRcpt(t *testing.T) {
-	s := NewServer(t)
+	s, ch := NewCatchServer(t)
 	defer s.Close()
 
 	c := NewClient(t)
@@ -598,4 +598,10 @@ func TestDataWithoutRcpt(t *testing.T) {
 
 	c.Send("DATA")
 	assert.Equal(t, c.ReadLine(), "503 Command out of sequence")
+
+	select {
+	case <-ch:
+	  t.Log("Should not have got a message")
+  case <-time.After(TIMEOUT):
+	}
 }
