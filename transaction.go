@@ -3,13 +3,13 @@ package smtp
 type Message struct {
 	Sender     string
 	Recipients []string
-	Data       string
+	Data       []byte
 }
 
 type transaction interface {
 	Sender(string) (transaction, bool)
 	Recipient(string) (transaction, bool)
-	Data(string) (Message, bool)
+	Data([]byte) (Message, bool)
 }
 
 func newTransaction() transaction {
@@ -30,7 +30,7 @@ func (t *closedTransaction) Recipient(recipient string) (transaction, bool) {
 	return nil, false
 }
 
-func (t *closedTransaction) Data(data string) (Message, bool) {
+func (t *closedTransaction) Data(data []byte) (Message, bool) {
 	return Message{}, false
 }
 
@@ -44,7 +44,7 @@ func (t *emptyTransaction) Recipient(recipient string) (transaction, bool) {
 	return nil, false
 }
 
-func (t *emptyTransaction) Data(data string) (Message, bool) {
+func (t *emptyTransaction) Data(data []byte) (Message, bool) {
 	return Message{}, false
 }
 
@@ -61,7 +61,7 @@ func (t *senderTransaction) Recipient(recipient string) (transaction, bool) {
 	return &recipientsTransaction{t.sender, []string{recipient}}, true
 }
 
-func (t *senderTransaction) Data(data string) (Message, bool) {
+func (t *senderTransaction) Data(data []byte) (Message, bool) {
 	return Message{}, false
 }
 
@@ -80,6 +80,6 @@ func (t *recipientsTransaction) Recipient(recipient string) (transaction, bool) 
 	return t, true
 }
 
-func (t *recipientsTransaction) Data(data string) (Message, bool) {
+func (t *recipientsTransaction) Data(data []byte) (Message, bool) {
 	return Message{t.sender, t.recipients, data}, true
 }

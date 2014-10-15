@@ -97,7 +97,7 @@ func TestSenderRecipientBodyAndQuit(t *testing.T) {
 		if assert.Equal(1, len(msg.Recipients)) {
 			assert.Equal("recipient@example.net", msg.Recipients[0])
 		}
-		assert.Equal("This is the email body\n", msg.Data)
+		assert.Equal([]byte("This is the email body\n"), msg.Data)
 		close(called)
 	})
 
@@ -138,13 +138,13 @@ func TestSendMultipleMessagesWithSameConnection(t *testing.T) {
 			if assert.Equal(1, len(msg.Recipients)) {
 				assert.Equal("recipient@example.net", msg.Recipients[0])
 			}
-			assert.Equal("This is the email body\n", msg.Data)
+			assert.Equal([]byte("This is the email body\n"), msg.Data)
 		case 1:
 			assert.Equal("sender2@example.org", msg.Sender)
 			if assert.Equal(1, len(msg.Recipients)) {
 				assert.Equal("recipient2@example.net", msg.Recipients[0])
 			}
-			assert.Equal("This is the email body 2\n", msg.Data)
+			assert.Equal([]byte("This is the email body 2\n"), msg.Data)
 			close(called)
 		default:
 			t.Fail()
@@ -198,7 +198,7 @@ func TestMessageToMultipleRecipients(t *testing.T) {
 			assert.Equal("recipient2@example.net", msg.Recipients[1])
 			assert.Equal("recipient3@example.net", msg.Recipients[2])
 		}
-		assert.Equal("This is the email body\n", msg.Data)
+		assert.Equal([]byte("This is the email body\n"), msg.Data)
 		close(called)
 	})
 
@@ -238,7 +238,7 @@ func TestSenderRecipientBodyAndQuitWithReset(t *testing.T) {
 		if assert.Equal(1, len(msg.Recipients)) {
 			assert.Equal("recipient2@example.net", msg.Recipients[0])
 		}
-		assert.Equal("This is the email body2\n", msg.Data)
+		assert.Equal([]byte("This is the email body2\n"), msg.Data)
 		close(called)
 	})
 
@@ -248,7 +248,7 @@ func TestSenderRecipientBodyAndQuitWithReset(t *testing.T) {
 		if assert.Equal(1, len(msg.Recipients)) {
 			assert.Equal("recipient2@example.net", msg.Recipients[0])
 		}
-		assert.Equal("This is the email body2\n", msg.Data)
+		assert.Equal([]byte("This is the email body2\n"), msg.Data)
 		close(called2)
 	})
 
@@ -492,7 +492,7 @@ func TestData(t *testing.T) {
 		if assert.Equal(t, 1, len(msg.Recipients)) {
 			assert.Equal(t, "jane.doe@example.org", msg.Recipients[0])
 		}
-		assert.Equal(t, "ok so here is the message\nit goes a bit like this\nthat was it\n", msg.Data)
+		assert.Equal(t, []byte("ok so here is the message\nit goes a bit like this\nthat was it\n"), msg.Data)
 	case <-time.After(TIMEOUT):
 		t.Log("timed out")
 		t.Fail()
@@ -526,7 +526,7 @@ func TestDataWithEmptyBody(t *testing.T) {
 		if assert.Equal(t, 1, len(msg.Recipients)) {
 			assert.Equal(t, "jane.doe@example.org", msg.Recipients[0])
 		}
-		assert.Equal(t, "", msg.Data)
+		assert.Equal(t, []byte{}, msg.Data)
 	case <-time.After(TIMEOUT):
 		t.Log("timed out")
 		t.Fail()
@@ -594,7 +594,7 @@ func TestRset(t *testing.T) {
 		if assert.Equal(t, 1, len(msg.Recipients)) {
 			assert.Equal(t, "jane.doe2@example.org", msg.Recipients[0])
 		}
-		assert.Equal(t, "that was it\n", msg.Data)
+		assert.Equal(t, []byte("that was it\n"), msg.Data)
 	case <-time.After(TIMEOUT):
 		t.Log("timed out")
 		t.Fail()

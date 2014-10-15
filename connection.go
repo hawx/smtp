@@ -28,13 +28,13 @@ func (conn connection) read() (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-func (conn connection) readAll() (string, error) {
+func (conn connection) readAll() ([]byte, error) {
 	d, err := conn.ReadDotBytes()
 	if err != nil {
-		return "", err
+		return []byte{}, err
 	}
 
-	return string(d), nil
+	return d, nil
 }
 
 func (conn connection) write(format string, args ...interface{}) {

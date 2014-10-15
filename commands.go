@@ -43,7 +43,7 @@ func rcpt(args string, text connection, tran transaction) transaction {
 }
 
 func data(text connection, tran transaction) (Message, bool) {
-	if _, ok := tran.Data("test"); !ok {
+	if _, ok := tran.Data([]byte{}); !ok {
 		text.write(rOUT_OF_SEQUENCE)
 		return Message{}, false
 	}
