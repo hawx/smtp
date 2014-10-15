@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	ADDR = "127.0.0.1:9026"
+	ADDR = ":9026"
 	NAME = "mx.test.server"
 	TIMEOUT = 10 * time.Millisecond
 )
@@ -65,7 +65,7 @@ func (c Client) Skip(num int) {
 	}
 }
 
-func NewServer(t *testing.T) Server {
+func NewServer(t *testing.T) *Server {
 	s, err := Listen(ADDR, NAME)
 	if err != nil {
 		t.Fatal(err)
@@ -74,7 +74,7 @@ func NewServer(t *testing.T) Server {
 	return s
 }
 
-func NewCatchServer(t *testing.T) (Server, <-chan Message) {
+func NewCatchServer(t *testing.T) (*Server, <-chan Message) {
 	s := NewServer(t)
 
 	ch := make(chan Message)

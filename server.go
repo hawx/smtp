@@ -1,3 +1,4 @@
+// Package smtp provides an SMTP server for receiving mail.
 package smtp
 
 import (
@@ -17,22 +18,24 @@ const (
 	rOUT_OF_SEQUENCE = "503 Command out of sequence"
 )
 
+// User represents an account that can receive mail with a name and address
+// usually formatted as, e.g., "John Doe <john.doe@example.com>".
 type User struct {
 	Name, Addr string
 }
 
+// A Handler receives Messages when transactions are completed.
 type Handler func(Message)
+
+// A Verifier verifies whether its argument represents a user or email address
+// on the system, and if so returns the details as a User; otherwise an empty
+// User is returned.
 type Verifier func(string) User
+
+// An Expander expands mailing lists into the list of Users who are in it.
 type Expander func(string) []User
 
-type Server interface {
-	Handle(Handler)
-	Verify(Verifier)
-	Expand(Expander)
-	Close() error
-}
-
-type server struct {
+type Server struct {
 	name     string
 	ln       net.Listener
 	out      chan Message
@@ -43,13 +46,15 @@ type server struct {
 	expander Expander
 }
 
-func Listen(addr, name string) (Server, error) {
-	tcp, err := net.Listen("tcp", addr)
+// Listen creates a new Server listening at the local network address laddr and
+// will announce itself to new connections with the name given.
+func Listen(laddr, name string) (*Server, error) {
+	tcp, err := net.Listen("tcp", laddr)
 	if err != nil {
 		return nil, err
 	}
 
-	s := &server{
+	s := &Server{
 		name:     name,
 		ln:       tcp,
 		out:      make(chan Message),
@@ -69,24 +74,32 @@ func Listen(addr, name string) (Server, error) {
 	return s, nil
 }
 
-func (s *server) Handle(handler Handler) {
+// Handle registers a new Handler to the Server. All Handlers will be run for
+// each Message received, on completion of a mail transaction.
+func (s *Server) Handle(handler Handler) {
 	s.handlers = append(s.handlers, handler)
 }
 
-func (s *server) Verify(verifier Verifier) {
+// Verify registers the Verifier to be used when a VRFY command is issued to the
+// Server. If a Verifier was previously registered it is overwritten.
+func (s *Server) Verify(verifier Verifier) {
 	s.verifier = verifier
 }
 
-func (s *server) Expand(expander Expander) {
+// Expand registers the Expander to be used when an EXPN command is issued to
+// the Server. If an Expander was previously registered it is overwritten.
+func (s *Server) Expand(expander Expander) {
 	s.expander = expander
 }
 
-func (s *server) Close() error {
+// Close stops the Server from accepting new connections and listening.
+func (s *Server) Close() error {
+	// TODO: Make sure Close() kills in-progress transactions.
 	close(s.quit)
 	return s.ln.Close()
 }
 
-func (s *server) start() {
+func (s *Server) start() {
 	for {
 		conn, err := s.ln.Accept()
 		if err != nil {
@@ -103,7 +116,7 @@ func (s *server) start() {
 	}
 }
 
-func (s *server) handle() {
+func (s *Server) handle() {
 	for {
 		msg := <-s.out
 		for _, handler := range s.handlers {
@@ -112,7 +125,7 @@ func (s *server) handle() {
 	}
 }
 
-func (s *server) serve(text connection, closer io.Closer) {
+func (s *Server) serve(text connection, closer io.Closer) {
 	defer closer.Close()
 
 	text.write("220 %s", s.name)
