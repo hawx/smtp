@@ -200,8 +200,8 @@ type connection struct {
 	*textproto.Conn
 }
 
-func (text connection) read() (string, string, error) {
-	line, err := text.ReadLine()
+func (conn connection) read() (string, string, error) {
+	line, err := conn.ReadLine()
 	if err != nil {
 		return "", "", err
 	}
@@ -214,6 +214,15 @@ func (text connection) read() (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-func (text connection) write(format string, args ...interface{}) {
-	text.PrintfLine(format, args...)
+func (conn connection) readAll() (string, error) {
+	d, err := conn.ReadDotBytes()
+	if err != nil {
+		return "", err
+	}
+
+	return string(d), nil
+}
+
+func (conn connection) write(format string, args ...interface{}) {
+	conn.PrintfLine(format, args...)
 }

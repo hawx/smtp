@@ -50,13 +50,13 @@ func data(text connection, transaction Transaction) (Message, bool) {
 
 	text.write(rEND_DATA_WITH)
 
-	d, err := text.ReadDotBytes()
+	data, err := text.readAll()
 	if err != nil {
 		log.Println("DATA:", err)
 		return Message{}, false
 	}
 
 	text.write(rOK)
-	message, _ := transaction.Data(string(d))
+	message, _ := transaction.Data(data)
 	return message, true
 }
