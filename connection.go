@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-func NewConn(conn net.Conn) connection {
+func newConn(conn net.Conn) connection {
 	return connection{textproto.NewConn(conn)}
 }
 

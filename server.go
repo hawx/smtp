@@ -99,7 +99,7 @@ func (s *server) start() {
 			}
 		}
 
-		go s.serve(NewConn(conn), conn)
+		go s.serve(newConn(conn), conn)
 	}
 }
 
