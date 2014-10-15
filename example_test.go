@@ -1,5 +1,11 @@
 package smtp
 
+import (
+	"log"
+)
+
+var s *Server
+
 func ExampleHandler() {
 	var logger = func(message Message) {
 		log.Printf("Recieved message from %s\n%s\n", message.Sender, message.Data)
