@@ -10,40 +10,40 @@ var (
 	rcptRe = regexp.MustCompile("TO:<(.+)>")
 )
 
-func mail(args string, text connection, transaction Transaction) Transaction {
+func mail(args string, text connection, tran transaction) transaction {
 	matches := mailRe.FindStringSubmatch(args)
 	if matches == nil || len(matches) != 2 {
 		text.write(rSYNTAX_ERROR)
-		return transaction
+		return tran
 	}
 
-	if newTransaction, ok := transaction.Sender(matches[1]); ok {
+	if newTransaction, ok := tran.Sender(matches[1]); ok {
 		text.write(rOK)
 		return newTransaction
 	}
 
 	text.write(rOUT_OF_SEQUENCE)
-	return transaction
+	return tran
 }
 
-func rcpt(args string, text connection, transaction Transaction) Transaction {
+func rcpt(args string, text connection, tran transaction) transaction {
 	matches := rcptRe.FindStringSubmatch(args)
 	if matches == nil || len(matches) != 2 {
 		text.write(rSYNTAX_ERROR)
-		return transaction
+		return tran
 	}
 
-	if newTransaction, ok := transaction.Recipient(matches[1]); ok {
+	if newTransaction, ok := tran.Recipient(matches[1]); ok {
 		text.write(rOK)
 		return newTransaction
 	} else {
 		text.write(rOUT_OF_SEQUENCE)
-		return transaction
+		return tran
 	}
 }
 
-func data(text connection, transaction Transaction) (Message, bool) {
-	if _, ok := transaction.Data("test"); !ok {
+func data(text connection, tran transaction) (Message, bool) {
+	if _, ok := tran.Data("test"); !ok {
 		text.write(rOUT_OF_SEQUENCE)
 		return Message{}, false
 	}
@@ -57,6 +57,6 @@ func data(text connection, transaction Transaction) (Message, bool) {
 	}
 
 	text.write(rOK)
-	message, _ := transaction.Data(data)
+	message, _ := tran.Data(data)
 	return message, true
 }

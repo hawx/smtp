@@ -6,27 +6,27 @@ type Message struct {
 	Data       string
 }
 
-type Transaction interface {
-	Sender(string) (Transaction, bool)
-	Recipient(string) (Transaction, bool)
+type transaction interface {
+	Sender(string) (transaction, bool)
+	Recipient(string) (transaction, bool)
 	Data(string) (Message, bool)
 }
 
-func NewTransaction() Transaction {
+func newTransaction() transaction {
 	return &closedTransaction{}
 }
 
-func Reset(t Transaction) Transaction {
+func resetTransaction(t transaction) transaction {
 	return &emptyTransaction{}
 }
 
 type closedTransaction struct{}
 
-func (t *closedTransaction) Sender(sender string) (Transaction, bool) {
+func (t *closedTransaction) Sender(sender string) (transaction, bool) {
 	return nil, false
 }
 
-func (t *closedTransaction) Recipient(recipient string) (Transaction, bool) {
+func (t *closedTransaction) Recipient(recipient string) (transaction, bool) {
 	return nil, false
 }
 
@@ -36,11 +36,11 @@ func (t *closedTransaction) Data(data string) (Message, bool) {
 
 type emptyTransaction struct{}
 
-func (t *emptyTransaction) Sender(sender string) (Transaction, bool) {
+func (t *emptyTransaction) Sender(sender string) (transaction, bool) {
 	return &senderTransaction{sender}, true
 }
 
-func (t *emptyTransaction) Recipient(recipient string) (Transaction, bool) {
+func (t *emptyTransaction) Recipient(recipient string) (transaction, bool) {
 	return nil, false
 }
 
@@ -53,11 +53,11 @@ type senderTransaction struct {
 	sender string
 }
 
-func (t *senderTransaction) Sender(sender string) (Transaction, bool) {
+func (t *senderTransaction) Sender(sender string) (transaction, bool) {
 	return &senderTransaction{sender}, true
 }
 
-func (t *senderTransaction) Recipient(recipient string) (Transaction, bool) {
+func (t *senderTransaction) Recipient(recipient string) (transaction, bool) {
 	return &recipientsTransaction{t.sender, []string{recipient}}, true
 }
 
@@ -71,11 +71,11 @@ type recipientsTransaction struct {
 	recipients []string
 }
 
-func (t *recipientsTransaction) Sender(sender string) (Transaction, bool) {
+func (t *recipientsTransaction) Sender(sender string) (transaction, bool) {
 	return &senderTransaction{sender}, true
 }
 
-func (t *recipientsTransaction) Recipient(recipient string) (Transaction, bool) {
+func (t *recipientsTransaction) Recipient(recipient string) (transaction, bool) {
 	t.recipients = append(t.recipients, recipient)
 	return t, true
 }

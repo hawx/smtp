@@ -116,7 +116,7 @@ func (s *server) serve(text connection, closer io.Closer) {
 	defer closer.Close()
 
 	text.write("220 %s", s.name)
-	transaction := NewTransaction()
+	transaction := newTransaction()
 
 loop:
 	for {
@@ -132,12 +132,12 @@ loop:
 
 		switch strings.ToUpper(cmd) {
 		case "EHLO":
-			transaction = Reset(transaction)
+			transaction = resetTransaction(transaction)
 			text.write("250-%s at your service", s.name)
 			text.write("250 8BITMIME")
 
 		case "HELO":
-			transaction = Reset(transaction)
+			transaction = resetTransaction(transaction)
 			text.write("250 %s at your service", s.name)
 
 		case "MAIL":
@@ -149,11 +149,11 @@ loop:
 		case "DATA":
 			if message, ok := data(text, transaction); ok {
 				s.out <- message
-				transaction = Reset(transaction)
+				transaction = resetTransaction(transaction)
 			}
 
 		case "RSET":
-			transaction = Reset(transaction)
+			transaction = resetTransaction(transaction)
 			text.write(rOK)
 
 		case "VRFY":
