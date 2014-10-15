@@ -38,11 +38,22 @@ func (c Client) Send(format string, args ...interface{}) {
 }
 
 func (c Client) ReadLine() string {
-	line, err := c.text.ReadLine()
-	if err != nil {
-		c.t.Fatal(err)
+	lines := make(chan string, 1)
+
+	go func() {
+		line, err := c.text.ReadLine()
+		if err != nil {
+			c.t.Fatal(err)
+		}
+		lines <- line
+	}()
+
+	select {
+	case line := <-lines:
+		return line
+	case <-time.After(TIMEOUT):
+		return ""
 	}
-	return line
 }
 
 func (c Client) Skip(num int) {
@@ -60,7 +71,6 @@ func NewServer(t *testing.T) Server {
 		t.Fatal(err)
 	}
 
-	time.Sleep(time.Millisecond)
 	return s
 }
 
@@ -294,15 +304,6 @@ func TestVerify(t *testing.T) {
 		assert.Equal(c.Verify("sender@example.org").Error(), "252 Cannot VRFY user, but will attempt delivery")
 
 		assert.Nil(c.Quit())
-	})
-}
-
-func TestExpn(t *testing.T) {
-	with(t, func(s Server) {
-		c := NewClient(t)
-
-		c.Send("EXPN sender@example.org")
-		assert.Equal(t, c.ReadLine(), "502 Command not implemented")
 	})
 }
 
@@ -650,12 +651,12 @@ func TestVrfyWithImplementation(t *testing.T) {
 	s := NewServer(t)
 	defer s.Close()
 
-	s.Verify(func(addr string) (string, string, bool) {
-		if addr == "john.doe@example.com" {
-			return "John Doe", "john.doe@example.com", true
+	s.Verify(func(addr string) Mailbox {
+		if addr == "john.doe@example.com" || addr == "john.doe" {
+			return Mailbox{"John Doe", "john.doe@example.com"}
 		}
 
-		return "", "", false
+		return Mailbox{}
 	})
 
 	c := NewClient(t)
@@ -663,6 +664,47 @@ func TestVrfyWithImplementation(t *testing.T) {
 	c.Send("VRFY john.doe@example.com")
 	assert.Equal(t, c.ReadLine(), "250 John Doe <john.doe@example.com>")
 
+	c.Send("VRFY john.doe")
+	assert.Equal(t, c.ReadLine(), "250 John Doe <john.doe@example.com>")
+
 	c.Send("VRFY jane.doe@example.com")
 	assert.Equal(t, c.ReadLine(), "252 Cannot VRFY user, but will attempt delivery")
+}
+
+// EXPN
+
+func TestExpn(t *testing.T) {
+	s := NewServer(t)
+	defer s.Close()
+
+	c := NewClient(t)
+
+	c.Send("EXPN Cool-List")
+	assert.Equal(t, c.ReadLine(), "550 Access denied")
+}
+
+func TestExpnWithImplementation(t *testing.T) {
+	s := NewServer(t)
+	defer s.Close()
+
+	s.Expand(func(addr string) []Mailbox {
+		if addr != "Those-Does" && addr != "Those-Does@example.com" {
+			return []Mailbox{}
+		}
+
+		return []Mailbox{
+			Mailbox{"John Doe", "john.doe@example.com"},
+			Mailbox{"Jane Doe", "jane.doe@example.com"},
+		}
+	})
+
+	c := NewClient(t)
+
+	c.Send("EXPN Those-Does")
+	assert.Equal(t, c.ReadLine(), "250-John Doe <john.doe@example.com>")
+	assert.Equal(t, c.ReadLine(), "250 Jane Doe <jane.doe@example.com>")
+
+	c.Send("EXPN Those-Does@example.com")
+	assert.Equal(t, c.ReadLine(), "250-John Doe <john.doe@example.com>")
+	assert.Equal(t, c.ReadLine(), "250 Jane Doe <jane.doe@example.com>")
 }

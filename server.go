@@ -8,12 +8,18 @@ import (
 	"strings"
 )
 
+type Mailbox struct {
+	Name, Addr string
+}
+
 type Handler func(Message)
-type Verifier func(string) (string, string, bool)
+type Verifier func(string) Mailbox
+type Expander func(string) []Mailbox
 
 type Server interface {
 	Handle(Handler)
 	Verify(Verifier)
+	Expand(Expander)
 	Close() error
 }
 
@@ -23,8 +29,9 @@ type server struct {
 	out      chan Message
 	quit     chan struct{}
 
-	verifier Verifier
 	handlers []Handler
+	verifier Verifier
+	expander Expander
 }
 
 func Listen(addr, name string) (Server, error) {
@@ -39,8 +46,11 @@ func Listen(addr, name string) (Server, error) {
 		out:      make(chan Message),
 		quit:     make(chan struct{}),
 	  handlers: []Handler{},
-	  verifier: func(_ string) (string, string, bool) {
-			return "", "", false
+	  verifier: func(_ string) Mailbox {
+			return Mailbox{}
+		},
+	  expander: func(_ string) []Mailbox {
+			return []Mailbox{}
 		},
 	}
 
@@ -56,6 +66,10 @@ func (s *server) Handle(handler Handler) {
 
 func (s *server) Verify(verifier Verifier) {
 	s.verifier = verifier
+}
+
+func (s *server) Expand(expander Expander) {
+	s.expander = expander
 }
 
 func (s *server) Close() error {
@@ -134,12 +148,26 @@ loop:
 			transaction = Reset(transaction)
 
 		case "VRFY":
-			if name, addr, ok := s.verifier(rest); ok {
-				write(text, "250 %s <%s>", name, addr)
+			if box := s.verifier(rest); box != (Mailbox{}) {
+				write(text, "250 %s <%s>", box.Name, box.Addr)
 				continue
 			}
 
 			write(text, "252 Cannot VRFY user, but will attempt delivery")
+
+		case "EXPN":
+			if boxes := s.expander(rest); len(boxes) > 0 {
+				for i, box := range boxes {
+					if i == len(boxes) - 1 {
+						write(text, "250 %s <%s>", box.Name, box.Addr)
+					} else {
+						write(text, "250-%s <%s>", box.Name, box.Addr)
+					}
+				}
+				continue
+			}
+
+			write(text, "550 Access denied")
 
 		case "QUIT":
 			quit(text)
@@ -148,7 +176,7 @@ loop:
 		case "NOOP":
 			write(text, OK)
 
-		case "EXPN", "HELP":
+		case "HELP":
 			write(text, COMMAND_NOT_IMPLEMENTED)
 
 		default:
