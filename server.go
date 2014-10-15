@@ -8,13 +8,13 @@ import (
 	"strings"
 )
 
-type Mailbox struct {
+type User struct {
 	Name, Addr string
 }
 
 type Handler func(Message)
-type Verifier func(string) Mailbox
-type Expander func(string) []Mailbox
+type Verifier func(string) User
+type Expander func(string) []User
 
 type Server interface {
 	Handle(Handler)
@@ -46,11 +46,11 @@ func Listen(addr, name string) (Server, error) {
 		out:      make(chan Message),
 		quit:     make(chan struct{}),
 	  handlers: []Handler{},
-	  verifier: func(_ string) Mailbox {
-			return Mailbox{}
+	  verifier: func(_ string) User {
+			return User{}
 		},
-	  expander: func(_ string) []Mailbox {
-			return []Mailbox{}
+	  expander: func(_ string) []User {
+			return []User{}
 		},
 	}
 
@@ -148,7 +148,7 @@ loop:
 			transaction = Reset(transaction)
 
 		case "VRFY":
-			if box := s.verifier(rest); box != (Mailbox{}) {
+			if box := s.verifier(rest); box != (User{}) {
 				write(text, "250 %s <%s>", box.Name, box.Addr)
 				continue
 			}

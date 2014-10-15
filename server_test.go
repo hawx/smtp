@@ -300,36 +300,6 @@ func TestVerify(t *testing.T) {
 	assert.Nil(c.Quit())
 }
 
-func TestHelp(t *testing.T) {
-	s := NewServer(t)
-	defer s.Close()
-
-	c := NewClient(t)
-
-	c.Send("HELP")
-	assert.Equal(t, c.ReadLine(), "502 Command not implemented")
-}
-
-func TestNoop(t *testing.T) {
-	s := NewServer(t)
-	defer s.Close()
-
-	c := NewClient(t)
-
-	c.Send("NOOP")
-	assert.Equal(t, c.ReadLine(), "250 Ok")
-}
-
-func TestUnrecognizedCommand(t *testing.T) {
-	s := NewServer(t)
-	defer s.Close()
-
-	c := NewClient(t)
-
-	c.Send("LOOK")
-	assert.Equal(t, c.ReadLine(), "500 Command unrecognized")
-}
-
 // HELO
 
 func TestHelo(t *testing.T) {
@@ -647,12 +617,12 @@ func TestVrfyWithImplementation(t *testing.T) {
 	s := NewServer(t)
 	defer s.Close()
 
-	s.Verify(func(addr string) Mailbox {
+	s.Verify(func(addr string) User {
 		if addr == "john.doe@example.com" || addr == "john.doe" {
-			return Mailbox{"John Doe", "john.doe@example.com"}
+			return User{"John Doe", "john.doe@example.com"}
 		}
 
-		return Mailbox{}
+		return User{}
 	})
 
 	c := NewClient(t)
@@ -683,14 +653,14 @@ func TestExpnWithImplementation(t *testing.T) {
 	s := NewServer(t)
 	defer s.Close()
 
-	s.Expand(func(addr string) []Mailbox {
+	s.Expand(func(addr string) []User {
 		if addr != "Those-Does" && addr != "Those-Does@example.com" {
-			return []Mailbox{}
+			return []User{}
 		}
 
-		return []Mailbox{
-			Mailbox{"John Doe", "john.doe@example.com"},
-			Mailbox{"Jane Doe", "jane.doe@example.com"},
+		return []User{
+			{"John Doe", "john.doe@example.com"},
+			{"Jane Doe", "jane.doe@example.com"},
 		}
 	})
 
@@ -703,4 +673,40 @@ func TestExpnWithImplementation(t *testing.T) {
 	c.Send("EXPN Those-Does@example.com")
 	assert.Equal(t, c.ReadLine(), "250-John Doe <john.doe@example.com>")
 	assert.Equal(t, c.ReadLine(), "250 Jane Doe <jane.doe@example.com>")
+}
+
+// HELP
+
+func TestHelp(t *testing.T) {
+	s := NewServer(t)
+	defer s.Close()
+
+	c := NewClient(t)
+
+	c.Send("HELP")
+	assert.Equal(t, c.ReadLine(), "502 Command not implemented")
+}
+
+// NOOP
+
+func TestNoop(t *testing.T) {
+	s := NewServer(t)
+	defer s.Close()
+
+	c := NewClient(t)
+
+	c.Send("NOOP")
+	assert.Equal(t, c.ReadLine(), "250 Ok")
+}
+
+// Unknown
+
+func TestUnrecognizedCommand(t *testing.T) {
+	s := NewServer(t)
+	defer s.Close()
+
+	c := NewClient(t)
+
+	c.Send("LOOK")
+	assert.Equal(t, c.ReadLine(), "500 Command unrecognized")
 }
