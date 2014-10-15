@@ -1,4 +1,4 @@
-package server
+package smtp
 
 type Message struct {
 	Sender     string

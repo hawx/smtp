@@ -1,4 +1,4 @@
-package server
+package smtp
 
 import (
 	"github.com/stretchr/testify/assert"
