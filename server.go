@@ -8,6 +8,16 @@ import (
 	"strings"
 )
 
+const (
+	rOK = "250 Ok"
+	rBYE = "221 Bye"
+	rEND_DATA_WITH = "354 End data with <CRLF>.<CRLF>"
+	rCOMMAND_UNRECOGNIZED = "500 Command unrecognized"
+	rSYNTAX_ERROR = "501 Syntax error"
+	rCOMMAND_NOT_IMPLEMENTED = "502 Command not implemented"
+	rOUT_OF_SEQUENCE = "503 Command out of sequence"
+)
+
 type User struct {
 	Name, Addr string
 }
@@ -124,12 +134,13 @@ loop:
 
 		switch strings.ToUpper(cmd) {
 		case "EHLO":
-			ehlo(s.name, text)
 			transaction = Reset(transaction)
+			write(text, "250-%s at your service", s.name)
+			write(text, "250 8BITMIME")
 
 		case "HELO":
-			helo(s.name, text)
 			transaction = Reset(transaction)
+			write(text, "250 %s at your service", s.name)
 
 		case "MAIL":
 			transaction = mail(rest, text, transaction)
@@ -144,8 +155,8 @@ loop:
 			}
 
 		case "RSET":
-			rset(text)
 			transaction = Reset(transaction)
+			write(text, rOK)
 
 		case "VRFY":
 			if box := s.verifier(rest); box != (User{}) {
@@ -170,17 +181,17 @@ loop:
 			write(text, "550 Access denied")
 
 		case "QUIT":
-			quit(text)
+			write(text, rBYE)
 			break loop
 
 		case "NOOP":
-			write(text, OK)
+			write(text, rOK)
 
 		case "HELP":
-			write(text, COMMAND_NOT_IMPLEMENTED)
+			write(text, rCOMMAND_NOT_IMPLEMENTED)
 
 		default:
-			write(text, COMMAND_UNRECOGNIZED)
+			write(text, rCOMMAND_UNRECOGNIZED)
 		}
 	}
 }
