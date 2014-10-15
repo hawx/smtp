@@ -101,7 +101,7 @@ func (s *server) start() {
 		}
 
 		text := textproto.NewConn(conn)
-		go s.serve(text, conn)
+		go s.serve(connection{text}, conn)
 	}
 }
 
@@ -114,15 +114,15 @@ func (s *server) handle() {
 	}
 }
 
-func (s *server) serve(text *textproto.Conn, closer io.Closer) {
+func (s *server) serve(text connection, closer io.Closer) {
 	defer closer.Close()
 
-	write(text, "220 %s", s.name)
+	text.write("220 %s", s.name)
 	transaction := NewTransaction()
 
 loop:
 	for {
-		cmd, rest, err := read(text)
+		cmd, rest, err := text.read()
 		if err != nil {
 			if err == io.EOF {
 				return
@@ -135,12 +135,12 @@ loop:
 		switch strings.ToUpper(cmd) {
 		case "EHLO":
 			transaction = Reset(transaction)
-			write(text, "250-%s at your service", s.name)
-			write(text, "250 8BITMIME")
+			text.write("250-%s at your service", s.name)
+			text.write("250 8BITMIME")
 
 		case "HELO":
 			transaction = Reset(transaction)
-			write(text, "250 %s at your service", s.name)
+			text.write("250 %s at your service", s.name)
 
 		case "MAIL":
 			transaction = mail(rest, text, transaction)
@@ -156,47 +156,51 @@ loop:
 
 		case "RSET":
 			transaction = Reset(transaction)
-			write(text, rOK)
+			text.write(rOK)
 
 		case "VRFY":
 			if box := s.verifier(rest); box != (User{}) {
-				write(text, "250 %s <%s>", box.Name, box.Addr)
+				text.write("250 %s <%s>", box.Name, box.Addr)
 				continue
 			}
 
-			write(text, "252 Cannot VRFY user, but will attempt delivery")
+			text.write("252 Cannot VRFY user, but will attempt delivery")
 
 		case "EXPN":
 			if boxes := s.expander(rest); len(boxes) > 0 {
 				for i, box := range boxes {
 					if i == len(boxes) - 1 {
-						write(text, "250 %s <%s>", box.Name, box.Addr)
+						text.write("250 %s <%s>", box.Name, box.Addr)
 					} else {
-						write(text, "250-%s <%s>", box.Name, box.Addr)
+						text.write("250-%s <%s>", box.Name, box.Addr)
 					}
 				}
 				continue
 			}
 
-			write(text, "550 Access denied")
+			text.write("550 Access denied")
 
 		case "QUIT":
-			write(text, rBYE)
+			text.write(rBYE)
 			break loop
 
 		case "NOOP":
-			write(text, rOK)
+			text.write(rOK)
 
 		case "HELP":
-			write(text, rCOMMAND_NOT_IMPLEMENTED)
+			text.write(rCOMMAND_NOT_IMPLEMENTED)
 
 		default:
-			write(text, rCOMMAND_UNRECOGNIZED)
+			text.write(rCOMMAND_UNRECOGNIZED)
 		}
 	}
 }
 
-func read(text *textproto.Conn) (string, string, error) {
+type connection struct {
+	*textproto.Conn
+}
+
+func (text connection) read() (string, string, error) {
 	line, err := text.ReadLine()
 	if err != nil {
 		return "", "", err
@@ -210,6 +214,6 @@ func read(text *textproto.Conn) (string, string, error) {
 	return parts[0], parts[1], nil
 }
 
-func write(text *textproto.Conn, format string, args ...interface{}) {
+func (text connection) write(format string, args ...interface{}) {
 	text.PrintfLine(format, args...)
 }

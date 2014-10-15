@@ -1,7 +1,6 @@
 package server
 
 import (
-	"net/textproto"
 	"regexp"
 	"log"
 )
@@ -11,45 +10,45 @@ var (
 	rcptRe = regexp.MustCompile("TO:<(.+)>")
 )
 
-func mail(args string, text *textproto.Conn, transaction Transaction) Transaction {
+func mail(args string, text connection, transaction Transaction) Transaction {
 	matches := mailRe.FindStringSubmatch(args)
 	if matches == nil || len(matches) != 2 {
-		write(text, rSYNTAX_ERROR)
+		text.write(rSYNTAX_ERROR)
 		return transaction
 	}
 
 	if newTransaction, ok := transaction.Sender(matches[1]); ok {
-		write(text, rOK)
+		text.write(rOK)
 		return newTransaction
-	} else {
-		write(text, rOUT_OF_SEQUENCE)
-		return transaction
 	}
+
+	text.write(rOUT_OF_SEQUENCE)
+	return transaction
 }
 
-func rcpt(args string, text *textproto.Conn, transaction Transaction) Transaction {
+func rcpt(args string, text connection, transaction Transaction) Transaction {
 	matches := rcptRe.FindStringSubmatch(args)
 	if matches == nil || len(matches) != 2 {
-		write(text, rSYNTAX_ERROR)
+		text.write(rSYNTAX_ERROR)
 		return transaction
 	}
 
 	if newTransaction, ok := transaction.Recipient(matches[1]); ok {
-		write(text, rOK)
+		text.write(rOK)
 		return newTransaction
 	} else {
-		write(text, rOUT_OF_SEQUENCE)
+		text.write(rOUT_OF_SEQUENCE)
 		return transaction
 	}
 }
 
-func data(text *textproto.Conn, transaction Transaction) (Message, bool) {
+func data(text connection, transaction Transaction) (Message, bool) {
 	if _, ok := transaction.Data("test"); !ok {
-		write(text, rOUT_OF_SEQUENCE)
+		text.write(rOUT_OF_SEQUENCE)
 		return Message{}, false
 	}
 
-	write(text, rEND_DATA_WITH)
+	text.write(rEND_DATA_WITH)
 
 	d, err := text.ReadDotBytes()
 	if err != nil {
@@ -57,7 +56,7 @@ func data(text *textproto.Conn, transaction Transaction) (Message, bool) {
 		return Message{}, false
 	}
 
-	text.PrintfLine(rOK)
+	text.write(rOK)
 	message, _ := transaction.Data(string(d))
 	return message, true
 }
