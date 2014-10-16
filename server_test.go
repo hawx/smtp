@@ -7,6 +7,11 @@ import (
 	"net/smtp"
 	"testing"
 	"time"
+	"strings"
+	"io"
+	"encoding/base64"
+	"crypto/md5"
+	"crypto/hmac"
 )
 
 const (
@@ -44,6 +49,7 @@ func (c Client) ReadLine() string {
 		line, err := c.text.ReadLine()
 		if err != nil {
 			c.t.Fatal(err)
+			return
 		}
 		lines <- line
 	}()
@@ -53,6 +59,24 @@ func (c Client) ReadLine() string {
 		return line
 	case <-time.After(TIMEOUT):
 		return ""
+	}
+}
+
+func (c Client) ReadClosed() bool {
+	errs := make(chan error)
+
+	go func() {
+		_, err := c.text.ReadLine()
+		if err != nil {
+			errs <- err
+		}
+	}()
+
+	select {
+	case err := <-errs:
+		return err == io.EOF
+	case <-time.After(TIMEOUT):
+		return false
 	}
 }
 
@@ -709,4 +733,83 @@ func TestUnrecognizedCommand(t *testing.T) {
 
 	c.Send("LOOK")
 	assert.Equal(t, c.ReadLine(), "500 Command unrecognized")
+}
+
+// AUTH
+
+func TestAuth(t *testing.T) {
+	const (
+		username = "john.doe@example.com"
+		secret = "chicken"
+	)
+
+	s := NewServer(t)
+	defer s.Close()
+
+	s.CramAuthenticator = func(user string) string {
+		if user == username {
+			return secret
+		}
+
+		return ""
+	}
+
+	c := NewClient(t)
+
+	c.Send("EHLO local.test")
+	c.Skip(2)
+
+	c.Send("AUTH CRAM-MD5")
+
+	resp := c.ReadLine()
+	parts := strings.Split(resp, " ")
+	assert.Equal(t, "334", parts[0])
+
+	e, _ := base64.StdEncoding.DecodeString(parts[1])
+	d := hmac.New(md5.New, []byte(secret))
+	d.Write(e)
+	c.Send(fmt.Sprintf("%s %x", username, d.Sum(make([]byte, 0, d.Size()))))
+
+	assert.Equal(t, "235 Authentication successful", c.ReadLine())
+	assert.False(t, c.ReadClosed())
+}
+
+func TestAuthWithWrongSecret(t *testing.T) {
+	const (
+		username = "john.doe@example.com"
+		secret = "chicken"
+		wrongSecret = "cat"
+	)
+
+	s := NewServer(t)
+	defer s.Close()
+
+	s.CramAuthenticator = func(user string) string {
+		if user == username {
+			return secret
+		}
+
+		return ""
+	}
+
+	c := NewClient(t)
+
+	c.Send("EHLO local.test")
+	c.Skip(2)
+
+	c.Send("AUTH CRAM-MD5")
+
+	resp := c.ReadLine()
+	parts := strings.Split(resp, " ")
+	assert.Equal(t, "334", parts[0])
+
+	e, _ := base64.StdEncoding.DecodeString(parts[1])
+	d := hmac.New(md5.New, []byte(wrongSecret))
+	d.Write(e)
+	c.Send(fmt.Sprintf("%s %x", username, d.Sum(make([]byte, 0, d.Size()))))
+
+	assert.Equal(t, "535 Authentication credentials invalid", c.ReadLine())
+
+	c.Send("MAIL FROM:<john.doe@example.com>")
+	assert.True(t, c.ReadClosed())
 }

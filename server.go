@@ -4,8 +4,13 @@ package smtp
 import (
 	"io"
 	"log"
+	"fmt"
 	"net"
 	"strings"
+	"crypto/rand"
+	"crypto/hmac"
+	"crypto/md5"
+	"encoding/base64"
 )
 
 const (
@@ -44,6 +49,8 @@ type Server struct {
 	handlers []Handler
 	verifier Verifier
 	expander Expander
+
+	CramAuthenticator func(string) string
 }
 
 // Listen creates a new Server listening at the local network address laddr and
@@ -200,6 +207,39 @@ loop:
 
 		case "HELP":
 			text.write(rCOMMAND_NOT_IMPLEMENTED)
+
+		case "AUTH":
+			rb := make([]byte, 52)
+			_, err := rand.Read(rb)
+			if err != nil {
+				log.Println(err)
+				continue
+			}
+
+			text.write("334 %s", base64.StdEncoding.EncodeToString(rb))
+
+			user, rest, err := text.read()
+			if err != nil {
+				if err == io.EOF {
+					return
+				}
+
+				log.Println("read:", err)
+				return
+			}
+
+			secret := s.CramAuthenticator(user)
+			d := hmac.New(md5.New, []byte(secret))
+			d.Write(rb)
+			sum := fmt.Sprintf("%x", d.Sum(make([]byte, 0, d.Size())))
+
+			if sum == rest {
+				text.write("235 Authentication successful")
+				continue
+			}
+
+			text.write("535 Authentication credentials invalid")
+			return
 
 		default:
 			text.write(rCOMMAND_UNRECOGNIZED)
