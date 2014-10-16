@@ -4,13 +4,8 @@ package smtp
 import (
 	"io"
 	"log"
-	"fmt"
 	"net"
 	"strings"
-	"crypto/rand"
-	"crypto/hmac"
-	"crypto/md5"
-	"encoding/base64"
 )
 
 const (
@@ -209,14 +204,15 @@ loop:
 			text.write(rCOMMAND_NOT_IMPLEMENTED)
 
 		case "AUTH":
-			rb := make([]byte, 52)
-			_, err := rand.Read(rb)
+			auth := CramAuthenticator(s.CramAuthenticator)
+
+			toClient, err := auth.Start()
 			if err != nil {
 				log.Println(err)
-				continue
+				return
 			}
 
-			text.write("334 %s", base64.StdEncoding.EncodeToString(rb))
+			text.write("334 %s", toClient)
 
 			user, rest, err := text.read()
 			if err != nil {
@@ -228,12 +224,7 @@ loop:
 				return
 			}
 
-			secret := s.CramAuthenticator(user)
-			d := hmac.New(md5.New, []byte(secret))
-			d.Write(rb)
-			sum := fmt.Sprintf("%x", d.Sum(make([]byte, 0, d.Size())))
-
-			if sum == rest {
+			if auth.Auth(user, rest) {
 				text.write("235 Authentication successful")
 				continue
 			}
